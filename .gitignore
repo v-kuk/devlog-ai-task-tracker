@@ -1,0 +1,7 @@
+node_modules/
+.next/
+devlog.db
+.env
+.env.local
+*.db-shm
+*.db-wal
