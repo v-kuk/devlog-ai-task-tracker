@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTaskById } from "@/lib/db";
 import { runDecomposeAgent } from "@/lib/agents/decompose";
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { taskId?: string };
-
+    const body = (await req.json().catch(() => ({}))) as {
+      taskId?: string;
+      clarificationAnswer?: string;
+    };
     if (!body.taskId) {
-      return NextResponse.json({ error: "taskId is required" }, { status: 400 });
+      return NextResponse.json({ error: "taskId required" }, { status: 400 });
     }
-
-    const task = getTaskById(body.taskId);
-    if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
-    }
-
-    const result = await runDecomposeAgent(body.taskId);
-    return NextResponse.json({ result });
+    const result = await runDecomposeAgent(body.taskId, body.clarificationAnswer);
+    return NextResponse.json(result, {
+      headers: { "cache-control": "no-store" },
+    });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[api/agents/decompose]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Agent error" },
+      { status: 500 }
+    );
   }
 }
