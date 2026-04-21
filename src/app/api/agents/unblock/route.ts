@@ -1,7 +1,17 @@
-// TODO: Implement POST /api/agents/unblock
-// Calls lib/agents/unblock.ts — no business logic here
 import { NextResponse } from "next/server";
+import { runUnblockingAgent } from "@/lib/agents/unblock";
 
 export async function POST() {
-  return NextResponse.json({ error: "Not implemented" }, { status: 501 });
+  try {
+    const result = await runUnblockingAgent();
+    return NextResponse.json(result, {
+      headers: { "cache-control": "no-store" },
+    });
+  } catch (err) {
+    console.error("[api/agents/unblock]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Agent error" },
+      { status: 500 }
+    );
+  }
 }

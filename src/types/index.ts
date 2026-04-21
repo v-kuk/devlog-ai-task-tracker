@@ -60,22 +60,32 @@ export interface ToolCallLog {
   output: string;
 }
 
+export interface AgentRecommendation {
+  taskId: string;
+  title?: string;
+  reason: string;
+  suggestedPriority?: TaskPriority;
+}
+
+export interface BlockedTaskReport {
+  task: Task;
+  daysStuck: number;
+  questions: string[];
+  nextActions: string[];
+}
+
 export interface AgentResult {
   type: "prioritize" | "decompose" | "unblock";
   content: string;
-  subtasks?: Array<{
-    title: string;
-    description: string;
-    priority: TaskPriority;
-  }>;
-  recommendations?: Array<{
-    taskId: string;
-    reason: string;
-    suggestedPriority: TaskPriority;
-  }>;
+  summary?: string;
+  subtasks?: Task[];
+  recommendations?: AgentRecommendation[];
+  blockedTasks?: BlockedTaskReport[];
   toolCallLog?: ToolCallLog[];
   needsClarification?: boolean;
   question?: string;
+  mocked?: boolean;
+  notice?: string;
 }
 
 // ─── API Response Helpers ─────────────────────────────────────────────────────
