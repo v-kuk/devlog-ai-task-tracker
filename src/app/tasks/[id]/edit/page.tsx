@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { TaskForm } from "@/components/tasks/TaskForm";
+import { AgentPanel } from "@/components/agents/AgentPanel";
 import { useTasks } from "@/hooks/useTasks";
 import type { Task, CreateTaskInput } from "@/types";
 
 interface EditPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default function EditTaskPage({ params }: EditPageProps) {
+  const { id } = use(params);
   const router = useRouter();
   const { updateTask } = useTasks();
   const [task, setTask]       = useState<Task | null>(null);
@@ -22,7 +24,7 @@ export default function EditTaskPage({ params }: EditPageProps) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`/api/tasks/${params.id}`);
+        const res = await fetch(`/api/tasks/${id}`);
         if (res.status === 404) { setNotFound(true); return; }
         if (!res.ok) throw new Error("Failed to load task");
         const data = (await res.json()) as { task: Task };
@@ -33,19 +35,19 @@ export default function EditTaskPage({ params }: EditPageProps) {
         setFetching(false);
       }
     })();
-  }, [params.id]);
+  }, [id]);
 
   const handleSubmit = useCallback(
     async (data: CreateTaskInput) => {
       setIsLoading(true);
       try {
-        await updateTask(params.id, data);
+        await updateTask(id, data);
         router.push("/");
       } finally {
         setIsLoading(false);
       }
     },
-    [updateTask, params.id, router]
+    [updateTask, id, router]
   );
 
   if (fetching) {
@@ -98,6 +100,10 @@ export default function EditTaskPage({ params }: EditPageProps) {
             onCancel={() => router.push("/")}
             isLoading={isLoading}
           />
+        </div>
+
+        <div className="mt-6">
+          <AgentPanel task={task} />
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ interface TaskCardProps {
   task: Task;
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
+  onAiAction?: (id: string) => void;
 }
 
 const STATUS_STYLES: Record<Task["status"], { label: string; className: string }> = {
@@ -35,7 +36,7 @@ function relativeTime(ts: number): string {
   return `${months}mo ago`;
 }
 
-export function TaskCard({ task, onDelete, onEdit }: TaskCardProps) {
+export function TaskCard({ task, onDelete, onEdit, onAiAction }: TaskCardProps) {
   const [confirming, setConfirming] = useState(false);
 
   const status = STATUS_STYLES[task.status];
@@ -97,7 +98,7 @@ export function TaskCard({ task, onDelete, onEdit }: TaskCardProps) {
               <Trash2 size={13} />
             </button>
             <button
-              onClick={() => onEdit(task.id)}
+              onClick={() => (onAiAction ?? onEdit)(task.id)}
               className="p-1.5 rounded-sm text-[var(--muted)] hover:text-amber-400 hover:bg-[var(--surface-2)] transition-colors"
               title="AI Actions"
             >
