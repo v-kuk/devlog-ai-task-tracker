@@ -1,13 +1,105 @@
-// TODO: Implement edit task page
-// - Fetch task by id from /api/tasks/[id]
-// - Render TaskForm in "edit" mode pre-filled with task data
-// - Render AgentPanel alongside for AI assistance
-// - No <form> tags — use controlled inputs + onClick handlers
+"use client";
 
-export default function EditTaskPage({ params }: { params: { id: string } }) {
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { TaskForm } from "@/components/tasks/TaskForm";
+import { useTasks } from "@/hooks/useTasks";
+import type { Task, CreateTaskInput } from "@/types";
+
+interface EditPageProps {
+  params: { id: string };
+}
+
+export default function EditTaskPage({ params }: EditPageProps) {
+  const router = useRouter();
+  const { updateTask } = useTasks();
+  const [task, setTask]       = useState<Task | null>(null);
+  const [fetching, setFetching] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/tasks/${params.id}`);
+        if (res.status === 404) { setNotFound(true); return; }
+        if (!res.ok) throw new Error("Failed to load task");
+        const data = (await res.json()) as { task: Task };
+        setTask(data.task);
+      } catch {
+        setNotFound(true);
+      } finally {
+        setFetching(false);
+      }
+    })();
+  }, [params.id]);
+
+  const handleSubmit = useCallback(
+    async (data: CreateTaskInput) => {
+      setIsLoading(true);
+      try {
+        await updateTask(params.id, data);
+        router.push("/");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [updateTask, params.id, router]
+  );
+
+  if (fetching) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
+        <Loader2 size={24} className="animate-spin text-[var(--muted)]" />
+      </div>
+    );
+  }
+
+  if (notFound || !task) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: "var(--background)" }}>
+        <p className="mono text-[var(--muted)]">Task not found</p>
+        <button
+          onClick={() => router.push("/")}
+          className="flex items-center gap-2 text-sm"
+          style={{ color: "var(--accent)" }}
+        >
+          <ArrowLeft size={14} /> Back to tasks
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <main>
-      <p>TODO: Edit task page for {params.id}</p>
-    </main>
+    <div className="min-h-screen" style={{ background: "var(--background)" }}>
+      <div className="max-w-2xl mx-auto px-6 py-10">
+        <button
+          onClick={() => router.push("/")}
+          className="flex items-center gap-2 text-sm mb-8 transition-colors hover:text-[var(--foreground)]"
+          style={{ color: "var(--muted)" }}
+        >
+          <ArrowLeft size={14} />
+          <span className="mono">Back to tasks</span>
+        </button>
+
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold text-[var(--foreground)] mb-1">Edit task</h1>
+          <p className="mono text-xs" style={{ color: "var(--muted)" }}>{task.id}</p>
+        </div>
+
+        <div
+          className="rounded-sm border p-6"
+          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+        >
+          <TaskForm
+            initialValues={task}
+            onSubmit={handleSubmit}
+            onCancel={() => router.push("/")}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
+    </div>
   );
 }

@@ -1,29 +1,80 @@
-// TODO: Implement useTasks hook
-// - Fetches tasks from GET /api/tasks with current filters
-// - Filters come from URL search params (passed in as argument)
-// - Returns: { tasks, isLoading, error, refetch, deleteTask, createTask }
-// - deleteTask calls DELETE /api/tasks/[id] then refetches
-// - createTask calls POST /api/tasks then refetches
-// - No optimistic updates needed for Step 1
+"use client";
 
-import type { Task, TaskFilters } from "@/types";
+import { useState, useCallback } from "react";
+import type { Task, CreateTaskInput, UpdateTaskInput } from "@/types";
 
-interface UseTasksResult {
+interface UseTasksState {
   tasks: Task[];
-  isLoading: boolean;
+  loading: boolean;
   error: string | null;
-  refetch: () => void;
+}
+
+interface UseTasksReturn extends UseTasksState {
+  fetchTasks: (params?: URLSearchParams) => Promise<void>;
+  createTask: (input: CreateTaskInput) => Promise<Task>;
+  updateTask: (id: string, input: UpdateTaskInput) => Promise<Task>;
   deleteTask: (id: string) => Promise<void>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function useTasks(_filters?: TaskFilters): UseTasksResult {
-  // TODO
-  return {
+export function useTasks(): UseTasksReturn {
+  const [state, setState] = useState<UseTasksState>({
     tasks: [],
-    isLoading: false,
+    loading: false,
     error: null,
-    refetch: () => {},
-    deleteTask: async () => {},
-  };
+  });
+
+  const fetchTasks = useCallback(async (params?: URLSearchParams) => {
+    setState((s) => ({ ...s, loading: true, error: null }));
+    try {
+      const qs = params?.toString() ? `?${params.toString()}` : "";
+      const res = await fetch(`/api/tasks${qs}`);
+      if (!res.ok) throw new Error(`Failed to fetch tasks (${res.status})`);
+      const data = (await res.json()) as { tasks: Task[] };
+      setState({ tasks: data.tasks, loading: false, error: null });
+    } catch (err) {
+      setState((s) => ({
+        ...s,
+        loading: false,
+        error: err instanceof Error ? err.message : "Unknown error",
+      }));
+    }
+  }, []);
+
+  const createTask = useCallback(async (input: CreateTaskInput): Promise<Task> => {
+    const res = await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const body = (await res.json()) as { error: string };
+      throw new Error(body.error ?? "Failed to create task");
+    }
+    const data = (await res.json()) as { task: Task };
+    return data.task;
+  }, []);
+
+  const updateTask = useCallback(async (id: string, input: UpdateTaskInput): Promise<Task> => {
+    const res = await fetch(`/api/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const body = (await res.json()) as { error: string };
+      throw new Error(body.error ?? "Failed to update task");
+    }
+    const data = (await res.json()) as { task: Task };
+    return data.task;
+  }, []);
+
+  const deleteTask = useCallback(async (id: string): Promise<void> => {
+    const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+    if (!res.ok && res.status !== 204) {
+      const body = (await res.json()) as { error: string };
+      throw new Error(body.error ?? "Failed to delete task");
+    }
+  }, []);
+
+  return { ...state, fetchTasks, createTask, updateTask, deleteTask };
 }
