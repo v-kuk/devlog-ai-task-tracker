@@ -16,6 +16,7 @@ interface UseTasksResult {
   deleteTask: (id: string) => Promise<void>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function useTasks(_filters?: TaskFilters): UseTasksResult {
   // TODO
   return {
