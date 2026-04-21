@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { nanoid } from "nanoid";
-import type { Task, TaskFilters, CreateTaskInput, UpdateTaskInput } from "@/types";
+import type { Task, CreateTaskInput, UpdateTaskInput } from "@/types";
 
 // ─── Database Setup ───────────────────────────────────────────────────────────
 
@@ -9,7 +9,6 @@ const DB_PATH = path.join(process.cwd(), "devlog.db");
 
 const db = new Database(DB_PATH);
 
-// Enable WAL mode for better concurrent read performance
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
@@ -27,54 +26,6 @@ db.exec(`
   )
 `);
 
-// ─── Prepared Statements ──────────────────────────────────────────────────────
-
-const stmts = {
-  getAll: db.prepare<[], DbRow>(`
-    SELECT * FROM tasks
-    ORDER BY
-      CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END ASC,
-      created_at DESC
-  `),
-
-  getAllByStatus: db.prepare<[string], DbRow>(`
-    SELECT * FROM tasks
-    WHERE status = ?
-    ORDER BY
-      CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END ASC,
-      created_at DESC
-  `),
-
-  getAllByPriority: db.prepare<[string], DbRow>(`
-    SELECT * FROM tasks
-    WHERE priority = ?
-    ORDER BY
-      CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END ASC,
-      created_at DESC
-  `),
-
-  getAllByStatusAndPriority: db.prepare<[string, string], DbRow>(`
-    SELECT * FROM tasks
-    WHERE status = ? AND priority = ?
-    ORDER BY
-      CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END ASC,
-      created_at DESC
-  `),
-
-  getById: db.prepare<[string], DbRow>(`
-    SELECT * FROM tasks WHERE id = ?
-  `),
-
-  insert: db.prepare<[string, string, string, string, string, number, number], DbRow>(`
-    INSERT INTO tasks (id, title, description, status, priority, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `),
-
-  deleteById: db.prepare<[string], DbRow>(`
-    DELETE FROM tasks WHERE id = ?
-  `),
-};
-
 // ─── Internal Types ───────────────────────────────────────────────────────────
 
 interface DbRow {
@@ -87,77 +38,84 @@ interface DbRow {
   updated_at: number;
 }
 
+export interface GetAllTasksFilters {
+  status?: string;
+  sortBy?: "priority" | "createdAt";
+}
+
+// ─── Prepared Statements ──────────────────────────────────────────────────────
+
+const stmts = {
+  getById: db.prepare<[string], DbRow>(
+    `SELECT * FROM tasks WHERE id = ?`
+  ),
+  insert: db.prepare<[string, string, string, string, string, number, number], DbRow>(
+    `INSERT INTO tasks (id, title, description, status, priority, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ),
+  deleteById: db.prepare<[string], DbRow>(
+    `DELETE FROM tasks WHERE id = ?`
+  ),
+};
+
+// ─── Sort clause helper ───────────────────────────────────────────────────────
+
+const PRIORITY_SORT = `CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END ASC`;
+const CREATED_SORT  = `created_at DESC`;
+
+function orderClause(sortBy?: "priority" | "createdAt"): string {
+  return sortBy === "createdAt"
+    ? CREATED_SORT
+    : `${PRIORITY_SORT}, ${CREATED_SORT}`;
+}
+
 // ─── Row → Task Mapper ────────────────────────────────────────────────────────
 
 function rowToTask(row: DbRow): Task {
   return {
-    id: row.id,
-    title: row.title,
+    id:          row.id,
+    title:       row.title,
     description: row.description,
-    status: row.status as Task["status"],
-    priority: row.priority as Task["priority"],
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    status:      row.status   as Task["status"],
+    priority:    row.priority as Task["priority"],
+    createdAt:   row.created_at,
+    updatedAt:   row.updated_at,
   };
-}
-
-// ─── Search helper (not a prepared stmt — dynamic LIKE query) ─────────────────
-
-function buildSearchQuery(filters: TaskFilters): Task[] {
-  const conditions: string[] = [];
-  const params: (string | number)[] = [];
-
-  if (filters.status) {
-    conditions.push("status = ?");
-    params.push(filters.status);
-  }
-  if (filters.priority) {
-    conditions.push("priority = ?");
-    params.push(filters.priority);
-  }
-  if (filters.search) {
-    conditions.push("(title LIKE ? OR description LIKE ?)");
-    const term = `%${filters.search}%`;
-    params.push(term, term);
-  }
-
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-  const sql = `
-    SELECT * FROM tasks
-    ${where}
-    ORDER BY
-      CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END ASC,
-      created_at DESC
-  `;
-
-  const rows = db.prepare<(string | number)[], DbRow>(sql).all(...params);
-  return rows.map(rowToTask);
 }
 
 // ─── Exported Functions ───────────────────────────────────────────────────────
 
-export function getAllTasks(filters?: TaskFilters): Task[] {
-  if (filters && Object.values(filters).some(Boolean)) {
-    return buildSearchQuery(filters);
+export function getAllTasks(filters?: GetAllTasksFilters): Task[] {
+  const order = orderClause(filters?.sortBy);
+
+  if (filters?.status) {
+    return db
+      .prepare<[string], DbRow>(`SELECT * FROM tasks WHERE status = ? ORDER BY ${order}`)
+      .all(filters.status)
+      .map(rowToTask);
   }
-  return stmts.getAll.all().map(rowToTask);
+
+  return db
+    .prepare<[], DbRow>(`SELECT * FROM tasks ORDER BY ${order}`)
+    .all()
+    .map(rowToTask);
 }
 
-export function getTaskById(id: string): Task | undefined {
+export function getTaskById(id: string): Task | null {
   const row = stmts.getById.get(id);
-  return row ? rowToTask(row) : undefined;
+  return row ? rowToTask(row) : null;
 }
 
 export function createTask(input: CreateTaskInput): Task {
-  const id = nanoid();
+  const id  = nanoid();
   const now = Date.now();
 
   stmts.insert.run(
     id,
     input.title,
     input.description ?? "",
-    input.status ?? "todo",
-    input.priority ?? "medium",
+    input.status      ?? "todo",
+    input.priority    ?? "medium",
     now,
     now
   );
@@ -167,29 +125,17 @@ export function createTask(input: CreateTaskInput): Task {
   return rowToTask(row);
 }
 
-export function updateTask(id: string, input: UpdateTaskInput): Task | undefined {
+export function updateTask(id: string, input: UpdateTaskInput): Task {
   const existing = stmts.getById.get(id);
-  if (!existing) return undefined;
+  if (!existing) throw new Error(`Task not found: ${id}`);
 
-  const fields: string[] = [];
+  const fields: string[]           = [];
   const params: (string | number)[] = [];
 
-  if (input.title !== undefined) {
-    fields.push("title = ?");
-    params.push(input.title);
-  }
-  if (input.description !== undefined) {
-    fields.push("description = ?");
-    params.push(input.description);
-  }
-  if (input.status !== undefined) {
-    fields.push("status = ?");
-    params.push(input.status);
-  }
-  if (input.priority !== undefined) {
-    fields.push("priority = ?");
-    params.push(input.priority);
-  }
+  if (input.title       !== undefined) { fields.push("title = ?");       params.push(input.title); }
+  if (input.description !== undefined) { fields.push("description = ?"); params.push(input.description); }
+  if (input.status      !== undefined) { fields.push("status = ?");      params.push(input.status); }
+  if (input.priority    !== undefined) { fields.push("priority = ?");    params.push(input.priority); }
 
   if (fields.length === 0) return rowToTask(existing);
 
@@ -197,15 +143,18 @@ export function updateTask(id: string, input: UpdateTaskInput): Task | undefined
   fields.push("updated_at = ?");
   params.push(now, id);
 
-  db.prepare(`UPDATE tasks SET ${fields.join(", ")} WHERE id = ?`).run(...params);
+  db.prepare<(string | number)[]>(
+    `UPDATE tasks SET ${fields.join(", ")} WHERE id = ?`
+  ).run(...params);
 
   const updated = stmts.getById.get(id);
-  return updated ? rowToTask(updated) : undefined;
+  if (!updated) throw new Error(`Failed to retrieve updated task: ${id}`);
+  return rowToTask(updated);
 }
 
-export function deleteTask(id: string): boolean {
+export function deleteTask(id: string): void {
   const result = stmts.deleteById.run(id);
-  return result.changes > 0;
+  if (result.changes === 0) throw new Error(`Task not found: ${id}`);
 }
 
 export { db };
