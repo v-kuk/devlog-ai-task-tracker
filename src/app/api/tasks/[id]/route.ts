@@ -3,13 +3,14 @@ import { getTaskById, updateTask, deleteTask } from "@/lib/db";
 import { UpdateTaskInputSchema } from "@/types";
 
 interface RouteContext {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 // GET /api/tasks/[id]
-export function GET(_req: NextRequest, { params }: RouteContext): NextResponse {
+export async function GET(_req: NextRequest, { params }: RouteContext): Promise<NextResponse> {
   try {
-    const task = getTaskById(params.id);
+    const { id } = await params;
+    const task = getTaskById(id);
     if (!task) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -23,7 +24,8 @@ export function GET(_req: NextRequest, { params }: RouteContext): NextResponse {
 // PATCH /api/tasks/[id]
 export async function PATCH(req: NextRequest, { params }: RouteContext): Promise<NextResponse> {
   try {
-    const task = getTaskById(params.id);
+    const { id } = await params;
+    const task = getTaskById(id);
     if (!task) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -38,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext): Promise
       );
     }
 
-    const updated = updateTask(params.id, parsed.data);
+    const updated = updateTask(id, parsed.data);
     return NextResponse.json({ task: updated });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";
@@ -47,13 +49,14 @@ export async function PATCH(req: NextRequest, { params }: RouteContext): Promise
 }
 
 // DELETE /api/tasks/[id]
-export function DELETE(_req: NextRequest, { params }: RouteContext): NextResponse {
+export async function DELETE(_req: NextRequest, { params }: RouteContext): Promise<NextResponse> {
   try {
-    const task = getTaskById(params.id);
+    const { id } = await params;
+    const task = getTaskById(id);
     if (!task) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    deleteTask(params.id);
+    deleteTask(id);
     return new NextResponse(null, { status: 204 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";
