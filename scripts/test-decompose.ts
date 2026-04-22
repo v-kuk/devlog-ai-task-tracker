@@ -160,9 +160,10 @@ async function runSimulated() {
       if (name === "create_subtask") {
         const t = createTask({
           title: String(args.title),
-          description: `Parent: ${parent.id}\n\n${String(args.description)}`,
+          description: String(args.description),
           status: "todo",
           priority: args.priority as "low" | "medium" | "high",
+          parentTaskId: parent.id,
         });
         createdIds.push(t.id);
         return t;
@@ -189,7 +190,7 @@ async function runSimulated() {
   console.log("tasks after loop :", getAllTasks().length);
   for (const id of createdIds) {
     const row = getTaskById(id);
-    console.log(`  ${id} | persistedInDb=${!!row} | title=${row?.title}`);
+    console.log(`  ${id} | persistedInDb=${!!row} | parentTaskId=${row?.parentTaskId ?? "null"} | title=${row?.title}`);
   }
 
   for (const id of createdIds) deleteTask(id);
