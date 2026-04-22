@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useAgent, type AgentMode } from "@/hooks/useAgent";
 import type { Task, ToolCallLog } from "@/types";
+import { labelFor } from "./toolLabels";
 
 export interface AgentPanelProps {
   open: boolean;
@@ -133,7 +134,7 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
     >
       <SheetContent
         side="right"
-        className="sm:max-w-lg w-full overflow-y-auto"
+        className="sm:max-w-lg w-full overflow-y-auto overflow-x-hidden"
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
       >
         <SheetHeader>
@@ -187,17 +188,23 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
               </div>
               {streamingToolCalls.length > 0 && (
                 <ul
-                  className="rounded-sm border divide-y"
+                  className="rounded-sm border divide-y overflow-hidden"
                   style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
                 >
-                  {streamingToolCalls.map((e, i) => (
-                    <li key={i} className="p-2 text-xs mono">
-                      <span className="text-amber-400">→ {e.tool}</span>
-                      <span className="text-[10px] text-[var(--muted)] ml-2 truncate">
-                        {JSON.stringify(e.input).slice(0, 80)}
-                      </span>
-                    </li>
-                  ))}
+                  {streamingToolCalls.map((e, i) => {
+                    const { label, summary } = labelFor(e.tool, e.input);
+                    return (
+                      <li key={i} className="p-2 text-xs mono flex items-start gap-2 min-w-0">
+                        <Loader2 size={12} className="animate-spin shrink-0 mt-0.5 text-amber-400" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[var(--foreground)]">{label}</div>
+                          {summary && (
+                            <div className="text-[10px] text-[var(--muted)] truncate">{summary}</div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -537,17 +544,20 @@ function ToolCallTimeline({ log }: { log: ToolCallLog[] }) {
   return (
     <ol className="border-t divide-y" style={{ borderColor: "var(--border)" }}>
       {log.map((entry, i) => (
-        <li key={i} className="p-3 text-xs">
-          <div className="mono flex items-center gap-2 text-amber-400">
-            → {entry.tool}
+        <li key={i} className="p-3 border-b last:border-b-0" style={{ borderColor: "var(--border)" }}>
+          <div className="text-xs mono text-amber-400 mb-1">
+            → {labelFor(entry.tool, entry.input).label}
           </div>
-          <div className="mono text-[10px] text-[var(--muted)] mt-1 truncate">
-            in: {JSON.stringify(entry.input)}
-          </div>
-          <div className="mono text-[10px] text-[var(--muted)] truncate">
-            out:{" "}
-            {entry.output.length > 160 ? entry.output.slice(0, 160) + "…" : entry.output}
-          </div>
+          <details className="text-[10px] mono text-[var(--muted)]">
+            <summary className="cursor-pointer select-none">raw</summary>
+            <pre
+              className="mt-2 p-2 rounded-sm whitespace-pre-wrap break-all max-h-40 overflow-auto"
+              style={{ background: "var(--surface-2)" }}
+            >
+{`in:  ${JSON.stringify(entry.input, null, 2)}
+out: ${entry.output}`}
+            </pre>
+          </details>
         </li>
       ))}
     </ol>
