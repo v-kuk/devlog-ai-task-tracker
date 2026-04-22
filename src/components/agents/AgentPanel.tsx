@@ -32,6 +32,8 @@ export interface AgentPanelProps {
   task?: Task;
   onClose: () => void;
   onJumpToTask?: (taskId: string) => void;
+  /** Called when an agent run creates or mutates tasks (e.g. decompose). */
+  onTasksChanged?: () => void;
 }
 
 const MODE_META: Record<
@@ -58,7 +60,7 @@ const MODE_META: Record<
   },
 };
 
-export function AgentPanel({ open, mode, task, onClose, onJumpToTask }: AgentPanelProps) {
+export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksChanged }: AgentPanelProps) {
   const {
     result,
     loading,
@@ -72,6 +74,13 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask }: AgentPan
 
   const [clarificationAnswer, setClarificationAnswer] = useState("");
   const [showReasoning, setShowReasoning] = useState(false);
+
+  // Notify parent when decompose writes subtasks so task list can re-fetch.
+  useEffect(() => {
+    if (result?.type === "decompose" && !result.needsClarification && result.subtasks.length > 0) {
+      onTasksChanged?.();
+    }
+  }, [result, onTasksChanged]);
 
   // Reset internal state when sheet closes
   useEffect(() => {

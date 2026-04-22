@@ -129,6 +129,9 @@ function HomeContent() {
           mode={panelMode}
           task={panelTask}
           onClose={closePanel}
+          onTasksChanged={() =>
+            fetchTasks(new URLSearchParams(searchParams.toString()))
+          }
         />
       </ErrorBoundary>
     </div>
