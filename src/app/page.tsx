@@ -6,7 +6,9 @@ import { Plus, Cpu, Zap, ArrowUpDown } from "lucide-react";
 import { TaskList } from "@/components/tasks/TaskList";
 import { TaskFilters } from "@/components/tasks/TaskFilters";
 import { AgentPanel } from "@/components/agents/AgentPanel";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useTasks } from "@/hooks/useTasks";
+import { useCommandKey } from "@/hooks/useCommandKey";
 import type { Task } from "@/types";
 import type { AgentMode } from "@/hooks/useAgent";
 
@@ -52,48 +54,51 @@ function HomeContent() {
 
   const closePanel = useCallback(() => setPanelOpen(false), []);
 
+  useCommandKey("k", () => router.push("/tasks/new"));
+
   return (
     <div className="min-h-screen" style={{ background: "var(--background)" }}>
       <header
         className="sticky top-0 z-40 border-b"
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
       >
-        <div className="max-w-3xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Cpu size={18} className="text-amber-400" />
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Cpu size={18} className="text-amber-400 shrink-0" />
             <span className="font-semibold tracking-tight text-[var(--foreground)]">DevLog</span>
-            <span
-              className="mono text-[10px] px-2 py-0.5 rounded-sm border"
-              style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface-2)" }}
-            >
-              {loading ? "…" : tasks.length} tasks
-            </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => openPanel("prioritize")}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
+              className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
               style={{ borderColor: "var(--border)", color: "var(--muted)", background: "transparent" }}
               title="Prioritize my day"
             >
               <ArrowUpDown size={12} />
-              <span className="mono">Prioritize</span>
+              <span className="mono hidden sm:inline">Prioritize</span>
             </button>
             <button
               onClick={() => openPanel("unblock")}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
+              className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
               style={{ borderColor: "var(--border)", color: "var(--muted)", background: "transparent" }}
               title="Scan for blockers"
             >
               <Zap size={12} />
-              <span className="mono">Scan for blockers</span>
+              <span className="mono hidden sm:inline">Scan for blockers</span>
             </button>
+            <span
+              className="mono text-[10px] px-2 py-0.5 rounded-sm border whitespace-nowrap"
+              style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface-2)" }}
+              title="Task count"
+            >
+              {loading ? "…" : tasks.length} tasks
+            </span>
           </div>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6">
           <TaskFilters />
         </div>
@@ -118,12 +123,14 @@ function HomeContent() {
         <Plus size={22} strokeWidth={2.5} />
       </button>
 
-      <AgentPanel
-        open={panelOpen}
-        mode={panelMode}
-        task={panelTask}
-        onClose={closePanel}
-      />
+      <ErrorBoundary fallbackLabel="Agent panel crashed" onReset={closePanel}>
+        <AgentPanel
+          open={panelOpen}
+          mode={panelMode}
+          task={panelTask}
+          onClose={closePanel}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

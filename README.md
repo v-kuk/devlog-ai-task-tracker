@@ -1,36 +1,126 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DevLog
 
-## Getting Started
+AI-powered developer task tracker. Plain CRUD on top of SQLite, plus three Claude-driven agents that analyze your backlog with real multi-turn tool calling.
 
-First, run the development server:
+## What it does
+
+- **Tasks** — create, edit, delete, filter by status, sort by priority or recency
+- **Prioritize agent** — reviews your whole task list and recommends top 3 to work on today (considers age, priority, stuck time)
+- **Decompose agent** — breaks a task into subtasks. If the task is ambiguous, the agent asks a clarifying question before decomposing
+- **Unblock agent** — finds in-progress tasks stuck ≥3 days and generates root-cause questions + concrete next actions
+
+Each agent runs a real tool-call loop with Claude (`claude-sonnet-4-6` by default). Without an API key it falls back to deterministic mock responses so the UI stays usable.
+
+## Stack
+
+- **Next.js 16** App Router + Turbopack, React 19
+- **SQLite** via `better-sqlite3` (`devlog.db` in repo root)
+- **Anthropic SDK** (`@anthropic-ai/sdk`) for agent tool-calling
+- **Tailwind** + shadcn-style components (Radix primitives)
+- **Zod** for schema validation
+- TypeScript strict
+
+## Getting started
 
 ```bash
+# 1. Install
+npm install
+
+# 2. Add Anthropic key (optional — without it agents return mock responses)
+cp .env.example .env.local
+# edit .env.local and set ANTHROPIC_API_KEY=sk-ant-...
+
+# 3. Run
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# open http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Required: Node **≥20.9.0** (better-sqlite3 + Next 16). If you see a `NODE_MODULE_VERSION` mismatch, run `npm rebuild better-sqlite3`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project layout
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/
+│   ├── layout.tsx               # Root — dark/light aware shell
+│   ├── page.tsx                 # Home — task list, filters, agent triggers, Cmd+K
+│   ├── tasks/new/               # Create page
+│   ├── tasks/[id]/edit/         # Edit page + per-task agent triggers
+│   └── api/
+│       ├── tasks/               # GET/POST/PATCH/DELETE task CRUD
+│       └── agents/              # POST prioritize | decompose | unblock
+├── components/
+│   ├── ErrorBoundary.tsx        # Wraps AgentPanel
+│   ├── agents/AgentPanel.tsx    # Sheet-based agent UI (3 modes)
+│   ├── tasks/                   # TaskCard, TaskList, TaskForm, TaskFilters
+│   └── ui/                      # shadcn primitives (button, sheet, ...)
+├── hooks/
+│   ├── useTasks.ts              # Fetch + mutate tasks
+│   ├── useAgent.ts              # Fire agent endpoints + clarification flow
+│   └── useCommandKey.ts         # Cmd/Ctrl+K shortcut hook
+├── lib/
+│   ├── db.ts                    # SQLite CRUD with prepared statements
+│   ├── utils.ts                 # cn() helper
+│   └── agents/
+│       ├── loop.ts              # Generic Claude tool-call loop
+│       ├── prioritize.ts        # 3 tools: age, blocked list, priority score
+│       ├── decompose.ts         # 4 tools: assess, clarify, create, finalize
+│       └── unblock.ts           # 3 tools: identify, complexity, plan
+└── types/                       # Zod schemas + TS types
+scripts/
+└── test-decompose.ts            # Tool-call-log smoke test
+```
 
-## Learn More
+## Agent architecture
 
-To learn more about Next.js, take a look at the following resources:
+Every agent uses the same core loop (`src/lib/agents/loop.ts`):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Send messages + tool definitions to Claude.
+2. If response contains `tool_use` blocks: execute each tool server-side, feed results back as `tool_result`.
+3. Repeat until `stop_reason === "end_turn"` (or an early-stop predicate fires — decompose uses this for `request_clarification`).
+4. Return `{ text, toolCallLog }` — the full log is exposed in the UI under "Agent reasoning".
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Tool implementations are pure TypeScript and hit the same SQLite layer the REST API uses. `create_subtask` (decompose) writes real rows via `lib/db.ts#createTask`, tagged with `Parent: <id>` in the description (schema has no dedicated `parentTaskId` column yet).
 
-## Deploy on Vercel
+## UI flow
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Home** — sticky header with `DevLog` logo, Prioritize + Scan-for-blockers buttons, task count. Sparkles icon on each card opens Decompose in a right-side Sheet.
+- **Cmd/Ctrl+K** — jump to new-task page from anywhere on home (ignored while typing in inputs).
+- **AgentPanel** — single Sheet component, three modes:
+  - *prioritize* — numbered recs with Jump-to-task (scrolls + flash-highlights card)
+  - *decompose* — clarification textarea *or* subtask checklist with priority badges
+  - *unblock* — cards per stuck task with severity badge, questions, next actions
+- **Error boundary** around the panel — catches render errors, shows reset button
+- **Dark/light** — follows `prefers-color-scheme`; add `class="dark"` / `class="light"` on `<html>` to force
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## API endpoints
+
+| Method | Path                     | Body                               | Returns                 |
+| ------ | ------------------------ | ---------------------------------- | ----------------------- |
+| GET    | `/api/tasks`             | query: `status`, `sortBy`          | `{ tasks: Task[] }`     |
+| POST   | `/api/tasks`             | `CreateTaskInput`                  | `{ task: Task }`        |
+| GET    | `/api/tasks/[id]`        | —                                  | `{ task: Task }` or 404 |
+| PATCH  | `/api/tasks/[id]`        | `UpdateTaskInput`                  | `{ task: Task }`        |
+| DELETE | `/api/tasks/[id]`        | —                                  | 204                     |
+| POST   | `/api/agents/prioritize` | —                                  | `AgentResult`           |
+| POST   | `/api/agents/decompose`  | `{ taskId, clarificationAnswer? }` | `AgentResult`           |
+| POST   | `/api/agents/unblock`    | —                                  | `AgentResult`           |
+
+All agent routes send `cache-control: no-store` and return a mock `AgentResult` when `ANTHROPIC_API_KEY` is unset.
+
+## Smoke test
+
+```bash
+npx tsx scripts/test-decompose.ts
+```
+
+Runs the decompose loop against a fabricated parent task, prints every tool call with input/output, and verifies `create_subtask` persists rows to SQLite. Falls back to a scripted fake Anthropic client when the API key is missing, so you can validate the loop offline.
+
+## Scripts
+
+```bash
+npm run dev      # Turbopack dev on :3000
+npm run build    # Production build
+npm run start    # Run production server
+npm run lint     # Next lint (needs Node ≥20)
+```

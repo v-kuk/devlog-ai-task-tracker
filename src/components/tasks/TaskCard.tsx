@@ -78,8 +78,8 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction }: TaskCardProps) 
             </span>
           </div>
 
-          {/* Action buttons — visible on hover */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          {/* Action buttons — always visible on touch, hover-only on desktop */}
+          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
             <button
               onClick={() => onEdit(task.id)}
               className="p-1.5 rounded-sm text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
