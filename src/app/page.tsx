@@ -1,16 +1,23 @@
 "use client";
 
-import { useEffect, useCallback, Suspense } from "react";
+import { useEffect, useCallback, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Cpu, Zap } from "lucide-react";
+import { Plus, Cpu, Zap, ArrowUpDown } from "lucide-react";
 import { TaskList } from "@/components/tasks/TaskList";
 import { TaskFilters } from "@/components/tasks/TaskFilters";
+import { AgentPanel } from "@/components/agents/AgentPanel";
 import { useTasks } from "@/hooks/useTasks";
+import type { Task } from "@/types";
+import type { AgentMode } from "@/hooks/useAgent";
 
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { tasks, loading, error, fetchTasks, deleteTask } = useTasks();
+
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelMode, setPanelMode] = useState<AgentMode>("prioritize");
+  const [panelTask, setPanelTask] = useState<Task | undefined>();
 
   useEffect(() => {
     fetchTasks(new URLSearchParams(searchParams.toString()));
@@ -29,9 +36,24 @@ function HomeContent() {
     [router]
   );
 
+  const openPanel = useCallback((mode: AgentMode, task?: Task) => {
+    setPanelMode(mode);
+    setPanelTask(task);
+    setPanelOpen(true);
+  }, []);
+
+  const handleAiAction = useCallback(
+    (id: string) => {
+      const task = tasks.find((t) => t.id === id);
+      openPanel("decompose", task);
+    },
+    [tasks, openPanel]
+  );
+
+  const closePanel = useCallback(() => setPanelOpen(false), []);
+
   return (
     <div className="min-h-screen" style={{ background: "var(--background)" }}>
-      {/* Header */}
       <header
         className="sticky top-0 z-40 border-b"
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
@@ -48,37 +70,45 @@ function HomeContent() {
             </span>
           </div>
 
-          <button
-            onClick={() => router.push("/")}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
-            style={{ borderColor: "var(--border)", color: "var(--muted)", background: "transparent" }}
-            title="Scan for blockers (coming soon)"
-          >
-            <Zap size={12} />
-            <span className="mono">Scan for blockers</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openPanel("prioritize")}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
+              style={{ borderColor: "var(--border)", color: "var(--muted)", background: "transparent" }}
+              title="Prioritize my day"
+            >
+              <ArrowUpDown size={12} />
+              <span className="mono">Prioritize</span>
+            </button>
+            <button
+              onClick={() => openPanel("unblock")}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
+              style={{ borderColor: "var(--border)", color: "var(--muted)", background: "transparent" }}
+              title="Scan for blockers"
+            >
+              <Zap size={12} />
+              <span className="mono">Scan for blockers</span>
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Main */}
       <main className="max-w-3xl mx-auto px-6 py-8">
-        {/* Filters */}
         <div className="mb-6">
           <TaskFilters />
         </div>
 
-        {/* Task list */}
         <TaskList
           tasks={tasks}
           loading={loading}
           error={error}
           onDelete={handleDelete}
           onEdit={handleEdit}
+          onAiAction={handleAiAction}
           onRetry={() => fetchTasks(new URLSearchParams(searchParams.toString()))}
         />
       </main>
 
-      {/* Floating add button */}
       <button
         onClick={() => router.push("/tasks/new")}
         className="fixed bottom-8 right-8 w-12 h-12 rounded-sm flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 z-50"
@@ -87,6 +117,13 @@ function HomeContent() {
       >
         <Plus size={22} strokeWidth={2.5} />
       </button>
+
+      <AgentPanel
+        open={panelOpen}
+        mode={panelMode}
+        task={panelTask}
+        onClose={closePanel}
+      />
     </div>
   );
 }

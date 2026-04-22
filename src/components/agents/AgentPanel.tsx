@@ -1,183 +1,525 @@
 "use client";
 
-import { ArrowUpDown, GitBranch, Zap, Loader2, X, AlertCircle } from "lucide-react";
-import { useAgent } from "@/hooks/useAgent";
-import type { Task } from "@/types";
+import { useEffect, useState } from "react";
+import {
+  Loader2,
+  AlertCircle,
+  Sparkles,
+  GitBranch,
+  Zap,
+  ArrowUpDown,
+  MessageCircleQuestion,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+} from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { useAgent, type AgentMode } from "@/hooks/useAgent";
+import type { Task, ToolCallLog } from "@/types";
 
-interface AgentPanelProps {
-  task: Task;
+export interface AgentPanelProps {
+  open: boolean;
+  mode: AgentMode;
+  task?: Task;
+  onClose: () => void;
+  onJumpToTask?: (taskId: string) => void;
 }
 
-const AGENT_ACTIONS = [
-  {
-    type: "prioritize" as const,
-    label: "Prioritize",
-    description: "Analyze and suggest priority",
+const MODE_META: Record<
+  AgentMode,
+  { title: string; desc: string; cta: string; icon: typeof Sparkles }
+> = {
+  prioritize: {
+    title: "Prioritize my day",
+    desc: "Agent reviews your task list and recommends what to work on.",
+    cta: "Analyze my tasks",
     icon: ArrowUpDown,
-    color: "text-amber-400",
   },
-  {
-    type: "decompose" as const,
-    label: "Decompose",
-    description: "Break into subtasks",
+  decompose: {
+    title: "Decompose task",
+    desc: "Agent breaks a task into small, actionable subtasks.",
+    cta: "Break into subtasks",
     icon: GitBranch,
-    color: "text-blue-400",
   },
-  {
-    type: "unblock" as const,
-    label: "Unblock",
-    description: "Suggest ways to unblock",
+  unblock: {
+    title: "Scan for blockers",
+    desc: "Agent finds stuck work and suggests concrete next steps.",
+    cta: "Scan for blockers",
     icon: Zap,
-    color: "text-emerald-400",
   },
-] as const;
+};
 
-export function AgentPanel({ task }: AgentPanelProps) {
-  const { result, isLoading, error, runAgent, clearResult } = useAgent();
+export function AgentPanel({ open, mode, task, onClose, onJumpToTask }: AgentPanelProps) {
+  const {
+    result,
+    loading,
+    error,
+    awaitingClarification,
+    question,
+    runAgent,
+    submitClarification,
+    reset,
+  } = useAgent();
+
+  const [clarificationAnswer, setClarificationAnswer] = useState("");
+  const [showReasoning, setShowReasoning] = useState(false);
+
+  // Reset internal state when sheet closes
+  useEffect(() => {
+    if (!open) {
+      reset();
+      setClarificationAnswer("");
+      setShowReasoning(false);
+    }
+  }, [open, reset]);
+
+  const meta = MODE_META[mode];
+  const canDecompose = mode !== "decompose" || !!task;
+
+  const handleRun = () => {
+    void runAgent(mode, { taskId: task?.id });
+  };
+
+  const handleSubmitClarification = () => {
+    if (!clarificationAnswer.trim()) return;
+    void submitClarification(mode, clarificationAnswer.trim(), task?.id);
+    setClarificationAnswer("");
+  };
+
+  const handleJump = (taskId: string) => {
+    onJumpToTask?.(taskId);
+    onClose();
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-task-id="${taskId}"]`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.classList.add("ring-2", "ring-amber-400");
+      setTimeout(() => el?.classList.remove("ring-2", "ring-amber-400"), 1800);
+    }, 300);
+  };
 
   return (
-    <div
-      className="rounded-sm border p-5"
-      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+    <Sheet
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
     >
-      <h3 className="text-sm font-semibold text-[var(--foreground)] mb-1">
-        AI Actions
-      </h3>
-      <p className="text-xs text-[var(--muted)] mb-4">
-        Use AI to analyze and help with this task
-      </p>
-
-      {/* Action buttons */}
-      <div className="flex gap-2 mb-4">
-        {AGENT_ACTIONS.map((action) => (
-          <button
-            key={action.type}
-            onClick={() => runAgent(action.type, task.id)}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-3 py-2 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              borderColor: "var(--border)",
-              background: "var(--surface-2)",
-              color: "var(--foreground)",
-            }}
-          >
-            {isLoading && result === null ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <action.icon size={13} className={action.color} />
+      <SheetContent
+        side="right"
+        className="sm:max-w-lg w-full overflow-y-auto"
+        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+      >
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2 text-[var(--foreground)]">
+            <meta.icon size={16} className="text-amber-400" />
+            {meta.title}
+          </SheetTitle>
+          <SheetDescription className="text-[var(--muted)]">
+            {meta.desc}
+            {task && (
+              <span className="mono block mt-1 text-[10px]">
+                Task: {task.title}
+              </span>
             )}
-            <span className="mono">{action.label}</span>
-          </button>
-        ))}
-      </div>
+          </SheetDescription>
+        </SheetHeader>
 
-      {/* Error display */}
-      {error && (
-        <div
-          className="flex items-start gap-2 p-3 rounded-sm border text-xs mb-4"
-          style={{
-            background: "rgba(239, 68, 68, 0.1)",
-            borderColor: "rgba(239, 68, 68, 0.3)",
-            color: "rgb(252, 165, 165)",
-          }}
-        >
-          <AlertCircle size={14} className="shrink-0 mt-0.5" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* Loading state */}
-      {isLoading && (
-        <div className="flex items-center gap-2 p-4 text-xs text-[var(--muted)]">
-          <Loader2 size={14} className="animate-spin" />
-          <span className="mono">Running agent…</span>
-        </div>
-      )}
-
-      {/* Result display */}
-      {result && !isLoading && (
-        <div
-          className="rounded-sm border p-4"
-          style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <span className="mono text-[10px] font-semibold tracking-widest uppercase text-[var(--muted)]">
-              {result.type} result
-            </span>
-            <button
-              onClick={clearResult}
-              className="p-1 rounded-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+        <div className="mt-6 space-y-4">
+          {/* CTA */}
+          {!result && !awaitingClarification && (
+            <Button
+              onClick={handleRun}
+              disabled={loading || !canDecompose}
+              className="w-full"
             >
-              <X size={12} />
-            </button>
-          </div>
+              {loading ? (
+                <>
+                  <Loader2 size={14} className="animate-spin mr-2" />
+                  Agent is thinking<AnimatedDots />
+                </>
+              ) : (
+                <>
+                  <Sparkles size={14} className="mr-2" />
+                  {meta.cta}
+                </>
+              )}
+            </Button>
+          )}
 
-          {/* Content */}
-          <p className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap mb-3">
-            {result.content}
-          </p>
+          {!canDecompose && (
+            <p className="text-xs text-amber-400">
+              Decompose requires a task. Open this panel from a task card.
+            </p>
+          )}
 
-          {/* Subtasks */}
-          {result.subtasks && result.subtasks.length > 0 && (
-            <div className="mt-3">
-              <span className="mono text-[10px] text-[var(--muted)] font-semibold tracking-widest uppercase block mb-2">
-                Subtasks
-              </span>
-              <ul className="space-y-2">
-                {result.subtasks.map((sub, i) => (
-                  <li
-                    key={i}
-                    className="text-xs p-2 rounded-sm border"
-                    style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-                  >
-                    <span className="font-medium text-[var(--foreground)]">{sub.title}</span>
-                    {sub.description && (
-                      <p className="text-[var(--muted)] mt-0.5">{sub.description}</p>
-                    )}
-                  </li>
-                ))}
-              </ul>
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-[var(--muted)] mono">
+              <Loader2 size={14} className="animate-spin" />
+              Agent is thinking<AnimatedDots />
             </div>
           )}
 
-          {/* Recommendations */}
-          {result.recommendations && result.recommendations.length > 0 && (
-            <div className="mt-3">
-              <span className="mono text-[10px] text-[var(--muted)] font-semibold tracking-widest uppercase block mb-2">
-                Recommendations
-              </span>
-              <ul className="space-y-2">
-                {result.recommendations.map((rec, i) => (
-                  <li
-                    key={i}
-                    className="text-xs p-2 rounded-sm border"
-                    style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-                  >
-                    <span className="text-[var(--foreground)]">{rec.reason}</span>
-                    <span className="ml-2 mono text-[10px] text-amber-400">
-                      → {rec.suggestedPriority}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Clarification question */}
-          {result.needsClarification && result.question && (
+          {/* Mocked notice */}
+          {result?.mocked && (
             <div
-              className="mt-3 p-3 rounded-sm border text-xs"
+              className="flex items-start gap-2 p-3 rounded-sm border text-xs"
               style={{
-                background: "rgba(251, 191, 36, 0.1)",
+                background: "rgba(251, 191, 36, 0.08)",
                 borderColor: "rgba(251, 191, 36, 0.3)",
                 color: "rgb(253, 224, 71)",
               }}
             >
-              <span className="font-medium">Needs clarification:</span> {result.question}
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <div>
+                <div className="font-medium">Mock response</div>
+                <div className="text-[var(--muted)] mt-0.5">
+                  {result.notice ?? "Set ANTHROPIC_API_KEY to enable real AI."}
+                </div>
+              </div>
             </div>
           )}
+
+          {/* Error */}
+          {error && (
+            <div
+              className="flex items-start gap-2 p-3 rounded-sm border text-xs"
+              style={{
+                background: "rgba(239, 68, 68, 0.1)",
+                borderColor: "rgba(239, 68, 68, 0.3)",
+                color: "rgb(252, 165, 165)",
+              }}
+            >
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-medium">Agent failed</div>
+                <div className="mt-0.5">{error}</div>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleRun}>
+                <RefreshCw size={12} className="mr-1" />
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {/* Mode-specific sections */}
+          {result && !error && (
+            <>
+              {mode === "prioritize" && (
+                <PrioritizeSection result={result} onJumpToTask={handleJump} />
+              )}
+              {mode === "decompose" && (
+                <DecomposeSection
+                  awaitingClarification={awaitingClarification}
+                  question={question}
+                  clarificationAnswer={clarificationAnswer}
+                  setClarificationAnswer={setClarificationAnswer}
+                  onSubmitClarification={handleSubmitClarification}
+                  result={result}
+                  loading={loading}
+                />
+              )}
+              {mode === "unblock" && <UnblockSection result={result} />}
+
+              {/* Agent reasoning collapsible */}
+              {result.toolCallLog && result.toolCallLog.length > 0 && (
+                <div
+                  className="rounded-sm border"
+                  style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+                >
+                  <button
+                    onClick={() => setShowReasoning((s) => !s)}
+                    className="w-full flex items-center justify-between p-3 text-xs mono text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      {showReasoning ? (
+                        <ChevronDown size={12} />
+                      ) : (
+                        <ChevronRight size={12} />
+                      )}
+                      Agent reasoning ({result.toolCallLog.length} tool calls)
+                    </span>
+                  </button>
+                  {showReasoning && <ToolCallTimeline log={result.toolCallLog} />}
+                </div>
+              )}
+            </>
+          )}
         </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function AnimatedDots() {
+  return <span className="ml-1 inline-block animate-pulse">…</span>;
+}
+
+// ─── Prioritize ───────────────────────────────────────────────────────────────
+
+function PrioritizeSection({
+  result,
+  onJumpToTask,
+}: {
+  result: import("@/types").AgentResult;
+  onJumpToTask: (id: string) => void;
+}) {
+  const recs = result.recommendations ?? [];
+
+  if (recs.length === 0) {
+    return (
+      <p className="text-xs text-[var(--muted)] mono">
+        No recommendations returned.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {result.summary && (
+        <p className="text-xs text-[var(--muted)] leading-relaxed">{result.summary}</p>
+      )}
+      <ol className="space-y-2">
+        {recs.map((r, i) => (
+          <li
+            key={`${r.taskId}-${i}`}
+            className="rounded-sm border p-3"
+            style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+          >
+            <div className="flex items-start gap-2">
+              <span className="mono text-[10px] font-semibold text-amber-400 mt-0.5">
+                {i + 1}.
+              </span>
+              <div className="flex-1">
+                <div className="font-semibold text-sm text-[var(--foreground)]">
+                  {r.title ?? "Untitled task"}
+                </div>
+                <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
+                  {r.reason}
+                </p>
+              </div>
+              {r.taskId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onJumpToTask(r.taskId)}
+                  className="shrink-0"
+                >
+                  Jump
+                </Button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+// ─── Decompose ────────────────────────────────────────────────────────────────
+
+interface DecomposeSectionProps {
+  awaitingClarification: boolean;
+  question: string | null;
+  clarificationAnswer: string;
+  setClarificationAnswer: (v: string) => void;
+  onSubmitClarification: () => void;
+  result: import("@/types").AgentResult;
+  loading: boolean;
+}
+
+function DecomposeSection({
+  awaitingClarification,
+  question,
+  clarificationAnswer,
+  setClarificationAnswer,
+  onSubmitClarification,
+  result,
+  loading,
+}: DecomposeSectionProps) {
+  if (awaitingClarification && question) {
+    return (
+      <div
+        className="rounded-sm border p-4 space-y-3"
+        style={{
+          background: "rgba(251, 191, 36, 0.08)",
+          borderColor: "rgba(251, 191, 36, 0.3)",
+        }}
+      >
+        <div className="flex items-start gap-2">
+          <MessageCircleQuestion size={16} className="text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <div className="mono text-[10px] font-semibold tracking-widest uppercase text-amber-400">
+              Clarification needed
+            </div>
+            <p className="text-sm text-[var(--foreground)] mt-1">{question}</p>
+          </div>
+        </div>
+        <Textarea
+          value={clarificationAnswer}
+          onChange={(e) => setClarificationAnswer(e.target.value)}
+          placeholder="Type your answer…"
+          disabled={loading}
+        />
+        <Button
+          onClick={onSubmitClarification}
+          disabled={loading || !clarificationAnswer.trim()}
+          className="w-full"
+        >
+          {loading ? (
+            <>
+              <Loader2 size={14} className="animate-spin mr-2" /> Submitting…
+            </>
+          ) : (
+            "Submit answer"
+          )}
+        </Button>
+      </div>
+    );
+  }
+
+  const subtasks = result.subtasks ?? [];
+
+  return (
+    <div className="space-y-3">
+      {result.summary && (
+        <p className="text-xs text-[var(--muted)] leading-relaxed">{result.summary}</p>
+      )}
+      {subtasks.length === 0 ? (
+        <p className="text-xs text-[var(--muted)] mono">No subtasks created.</p>
+      ) : (
+        <ul className="space-y-2">
+          {subtasks.map((s, i) => (
+            <li
+              key={s.id ?? i}
+              className="flex items-start gap-2 rounded-sm border p-3"
+              style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+            >
+              <input
+                type="checkbox"
+                disabled
+                className="mt-0.5 accent-amber-400"
+                aria-label="subtask complete"
+              />
+              <div className="flex-1">
+                <div className="text-sm text-[var(--foreground)] font-medium">
+                  {s.title}
+                </div>
+              </div>
+              <Badge variant="outline" className={priorityBadgeClass(s.priority)}>
+                {s.priority}
+              </Badge>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
+  );
+}
+
+function priorityBadgeClass(p: "low" | "medium" | "high"): string {
+  if (p === "high") return "border-red-700 text-red-400";
+  if (p === "medium") return "border-amber-700 text-amber-400";
+  return "border-emerald-700 text-emerald-400";
+}
+
+// ─── Unblock ──────────────────────────────────────────────────────────────────
+
+function UnblockSection({ result }: { result: import("@/types").AgentResult }) {
+  const blocked = result.blockedTasks ?? [];
+  if (blocked.length === 0) {
+    return (
+      <p className="text-xs text-[var(--muted)] mono">
+        No blocked tasks found. Nice.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="space-y-3">
+      {blocked.map((b) => {
+        const severity =
+          b.daysStuck >= 7 ? "red" : b.daysStuck >= 3 ? "yellow" : "zinc";
+        const badgeClass =
+          severity === "red"
+            ? "border-red-700 text-red-400"
+            : severity === "yellow"
+            ? "border-amber-700 text-amber-400"
+            : "border-zinc-600 text-zinc-400";
+        return (
+          <li
+            key={b.task.id}
+            className="rounded-sm border p-3 space-y-3"
+            style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-semibold text-sm text-[var(--foreground)]">
+                {b.task.title}
+              </div>
+              <Badge variant="outline" className={badgeClass}>
+                {b.daysStuck}d stuck
+              </Badge>
+            </div>
+
+            {b.questions.length > 0 && (
+              <div>
+                <div className="mono text-[10px] font-semibold tracking-widest uppercase text-[var(--muted)] mb-1">
+                  Questions
+                </div>
+                <ul className="list-disc ml-5 space-y-1 text-xs text-[var(--foreground)]">
+                  {b.questions.map((q, i) => (
+                    <li key={i}>{q}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {b.nextActions.length > 0 && (
+              <div>
+                <div className="mono text-[10px] font-semibold tracking-widest uppercase text-emerald-400 mb-1">
+                  Next actions
+                </div>
+                <ul className="list-disc ml-5 space-y-1 text-xs text-[var(--foreground)]">
+                  {b.nextActions.map((a, i) => (
+                    <li key={i}>{a}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// ─── Tool call timeline ───────────────────────────────────────────────────────
+
+function ToolCallTimeline({ log }: { log: ToolCallLog[] }) {
+  return (
+    <ol className="border-t divide-y" style={{ borderColor: "var(--border)" }}>
+      {log.map((entry, i) => (
+        <li key={i} className="p-3 text-xs">
+          <div className="mono flex items-center gap-2 text-amber-400">
+            → {entry.tool}
+          </div>
+          <div className="mono text-[10px] text-[var(--muted)] mt-1 truncate">
+            in: {JSON.stringify(entry.input)}
+          </div>
+          <div className="mono text-[10px] text-[var(--muted)] truncate">
+            out:{" "}
+            {entry.output.length > 160 ? entry.output.slice(0, 160) + "…" : entry.output}
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
