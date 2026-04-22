@@ -8,6 +8,7 @@ import { AgentPanel } from "@/components/agents/AgentPanel";
 import { useTasks } from "@/hooks/useTasks";
 import type { Task, CreateTaskInput } from "@/types";
 import type { AgentMode } from "@/hooks/useAgent";
+import { displayId } from "@/lib/utils";
 
 interface EditPageProps {
   params: Promise<{ id: string }>;
@@ -90,7 +91,7 @@ export default function EditTaskPage({ params }: EditPageProps) {
 
         <div className="mb-8">
           <h1 className="text-2xl font-semibold text-[var(--foreground)] mb-1">Edit task</h1>
-          <p className="mono text-xs" style={{ color: "var(--muted)" }}>{task.id}</p>
+          <p className="mono text-xs" style={{ color: "var(--muted)" }}>{displayId(task.sequence)}</p>
         </div>
 
         <div

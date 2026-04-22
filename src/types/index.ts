@@ -12,6 +12,7 @@ export type TaskPriority = z.infer<typeof TaskPriority>;
 
 export interface Task {
   id: string;
+  sequence: number;
   title: string;
   description: string;
   status: TaskStatus;

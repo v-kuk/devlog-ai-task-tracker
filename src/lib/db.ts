@@ -61,10 +61,24 @@ if (!columnExists("tasks", "parent_task_id")) {
   if (rows.length > 0) backfill(rows);
 }
 
+if (!columnExists("tasks", "sequence")) {
+  db.exec(`ALTER TABLE tasks ADD COLUMN sequence INTEGER`);
+  const rows = db.prepare<[], { id: string }>(
+    `SELECT id FROM tasks ORDER BY created_at ASC, id ASC`
+  ).all();
+  const stmt = db.prepare(`UPDATE tasks SET sequence = ? WHERE id = ?`);
+  const tx = db.transaction((items: { id: string }[]) => {
+    items.forEach((r, i) => stmt.run(i + 1, r.id));
+  });
+  if (rows.length > 0) tx(rows);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_sequence ON tasks(sequence)`);
+}
+
 // ─── Internal Types ───────────────────────────────────────────────────────────
 
 interface DbRow {
   id: string;
+  sequence: number;
   title: string;
   description: string;
   status: string;
@@ -85,9 +99,9 @@ const stmts = {
   getById: db.prepare<[string], DbRow>(
     `SELECT * FROM tasks WHERE id = ?`
   ),
-  insert: db.prepare<[string, string, string, string, string, number, number, string | null], DbRow>(
-    `INSERT INTO tasks (id, title, description, status, priority, created_at, updated_at, parent_task_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  insert: db.prepare<[string, string, string, string, string, number, number, string | null, number], DbRow>(
+    `INSERT INTO tasks (id, title, description, status, priority, created_at, updated_at, parent_task_id, sequence)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ),
   deleteById: db.prepare<[string], DbRow>(
     `DELETE FROM tasks WHERE id = ?`
@@ -110,6 +124,7 @@ function orderClause(sortBy?: "priority" | "createdAt"): string {
 function rowToTask(row: DbRow): Task {
   return {
     id:           row.id,
+    sequence:     row.sequence,
     title:        row.title,
     description:  row.description,
     status:       row.status   as Task["status"],
@@ -147,16 +162,26 @@ export function createTask(input: CreateTaskInput): Task {
   const id  = nanoid();
   const now = Date.now();
 
-  stmts.insert.run(
-    id,
-    input.title,
-    input.description ?? "",
-    input.status      ?? "todo",
-    input.priority    ?? "medium",
-    now,
-    now,
-    input.parentTaskId ?? null
-  );
+  const create = db.transaction(() => {
+    const maxRow = db.prepare<[], { max_seq: number | null }>(
+      `SELECT MAX(sequence) AS max_seq FROM tasks`
+    ).get();
+    const sequence = (maxRow?.max_seq ?? 0) + 1;
+
+    stmts.insert.run(
+      id,
+      input.title,
+      input.description ?? "",
+      input.status      ?? "todo",
+      input.priority    ?? "medium",
+      now,
+      now,
+      input.parentTaskId ?? null,
+      sequence
+    );
+  });
+
+  create();
 
   const row = stmts.getById.get(id);
   if (!row) throw new Error(`Failed to retrieve created task: ${id}`);

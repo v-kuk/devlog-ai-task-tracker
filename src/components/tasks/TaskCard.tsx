@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { Pencil, Trash2, Sparkles, Clock } from "lucide-react";
 import type { Task } from "@/types";
+import { displayId } from "@/lib/utils";
 
 interface TaskCardProps {
   task: Task;
@@ -110,6 +111,7 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction }: TaskCardProps) 
 
         {/* Title */}
         <h3 className="font-semibold text-[var(--foreground)] text-sm leading-snug mb-1">
+          <span className="mono text-[10px] text-[var(--muted)] mr-1">{displayId(task.sequence)}</span>
           {task.title}
         </h3>
 
