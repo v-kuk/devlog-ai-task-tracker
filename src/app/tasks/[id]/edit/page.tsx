@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Sparkles, GitBranch, ArrowUpDown, Zap } from "lucide-react";
+import { ArrowLeft, Loader2, GitBranch, ArrowUpDown, Zap } from "lucide-react";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { AgentPanel } from "@/components/agents/AgentPanel";
 import { useTasks } from "@/hooks/useTasks";
@@ -108,7 +108,7 @@ export default function EditTaskPage({ params }: EditPageProps) {
         <div className="mt-6 flex flex-wrap gap-2">
           <button
             onClick={() => { setPanelMode("decompose"); setPanelOpen(true); }}
-            className="flex items-center gap-2 px-3 py-2 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
+            className="flex items-center gap-2 px-3 py-2 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400 hover:bg-[var(--surface-2)]"
             style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}
           >
             <GitBranch size={13} />
@@ -116,7 +116,7 @@ export default function EditTaskPage({ params }: EditPageProps) {
           </button>
           <button
             onClick={() => { setPanelMode("prioritize"); setPanelOpen(true); }}
-            className="flex items-center gap-2 px-3 py-2 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
+            className="flex items-center gap-2 px-3 py-2 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400 hover:bg-[var(--surface-2)]"
             style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}
           >
             <ArrowUpDown size={13} />
@@ -124,19 +124,11 @@ export default function EditTaskPage({ params }: EditPageProps) {
           </button>
           <button
             onClick={() => { setPanelMode("unblock"); setPanelOpen(true); }}
-            className="flex items-center gap-2 px-3 py-2 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
+            className="flex items-center gap-2 px-3 py-2 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400 hover:bg-[var(--surface-2)]"
             style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}
           >
             <Zap size={13} />
             <span className="mono">Unblock</span>
-          </button>
-          <button
-            onClick={() => { setPanelMode("decompose"); setPanelOpen(true); }}
-            className="flex items-center gap-2 px-3 py-2 text-xs rounded-sm ml-auto transition-colors"
-            style={{ background: "var(--accent)", color: "#000" }}
-          >
-            <Sparkles size={13} />
-            <span className="mono">AI Actions</span>
           </button>
         </div>
 

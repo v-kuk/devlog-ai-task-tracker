@@ -75,7 +75,7 @@ function HomeContent() {
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => openPanel("prioritize")}
-              className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
+              className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400 hover:bg-[var(--surface-2)]"
               style={{ borderColor: "var(--border)", color: "var(--muted)", background: "transparent" }}
               title="Prioritize my day"
             >
@@ -84,7 +84,7 @@ function HomeContent() {
             </button>
             <button
               onClick={() => openPanel("unblock")}
-              className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400"
+              className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400 hover:bg-[var(--surface-2)]"
               style={{ borderColor: "var(--border)", color: "var(--muted)", background: "transparent" }}
               title="Scan for blockers"
             >
