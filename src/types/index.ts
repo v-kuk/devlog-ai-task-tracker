@@ -18,6 +18,7 @@ export interface Task {
   priority: TaskPriority;
   createdAt: number;
   updatedAt: number;
+  parentTaskId: string | null;
 }
 
 // ─── Task Filters ─────────────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ export const CreateTaskInputSchema = z.object({
   description: z.string().max(5000, "Description too long").default(""),
   status: TaskStatus.default("todo"),
   priority: TaskPriority.default("medium"),
+  parentTaskId: z.string().nullable().optional(),
 });
 
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>;

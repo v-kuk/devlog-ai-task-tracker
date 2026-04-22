@@ -16,15 +16,50 @@ db.pragma("foreign_keys = ON");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS tasks (
-    id          TEXT    PRIMARY KEY,
-    title       TEXT    NOT NULL,
-    description TEXT    NOT NULL DEFAULT '',
-    status      TEXT    NOT NULL DEFAULT 'todo',
-    priority    TEXT    NOT NULL DEFAULT 'medium',
-    created_at  INTEGER NOT NULL,
-    updated_at  INTEGER NOT NULL
+    id             TEXT    PRIMARY KEY,
+    title          TEXT    NOT NULL,
+    description    TEXT    NOT NULL DEFAULT '',
+    status         TEXT    NOT NULL DEFAULT 'todo',
+    priority       TEXT    NOT NULL DEFAULT 'medium',
+    created_at     INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL,
+    parent_task_id TEXT    REFERENCES tasks(id) ON DELETE SET NULL
   )
 `);
+
+// ─── Migrations ───────────────────────────────────────────────────────────────
+
+function columnExists(table: string, column: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  return rows.some((r) => r.name === column);
+}
+
+if (!columnExists("tasks", "parent_task_id")) {
+  db.exec(`ALTER TABLE tasks ADD COLUMN parent_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL`);
+}
+
+// Backfill parent_task_id from legacy "Parent: <id>\n\n" description prefix
+{
+  const PREFIX_RE = /^Parent:\s+([A-Za-z0-9_-]+)\n\n?/;
+  const rows = db
+    .prepare<[], { id: string; description: string; parent_task_id: string | null }>(
+      `SELECT id, description, parent_task_id FROM tasks WHERE parent_task_id IS NULL AND description LIKE 'Parent: %'`
+    )
+    .all();
+  const update = db.prepare(`UPDATE tasks SET parent_task_id = ?, description = ? WHERE id = ?`);
+  const backfill = db.transaction((items: typeof rows) => {
+    for (const row of items) {
+      const m = row.description.match(PREFIX_RE);
+      if (!m || !m[1]) continue;
+      const parentId: string = m[1];
+      const existsStmt = db.prepare<[string], { id: string }>(`SELECT id FROM tasks WHERE id = ?`);
+      if (!existsStmt.get(parentId)) continue;
+      const stripped = row.description.replace(PREFIX_RE, "");
+      update.run(parentId, stripped, row.id);
+    }
+  });
+  if (rows.length > 0) backfill(rows);
+}
 
 // ─── Internal Types ───────────────────────────────────────────────────────────
 
@@ -36,6 +71,7 @@ interface DbRow {
   priority: string;
   created_at: number;
   updated_at: number;
+  parent_task_id: string | null;
 }
 
 export interface GetAllTasksFilters {
@@ -49,9 +85,9 @@ const stmts = {
   getById: db.prepare<[string], DbRow>(
     `SELECT * FROM tasks WHERE id = ?`
   ),
-  insert: db.prepare<[string, string, string, string, string, number, number], DbRow>(
-    `INSERT INTO tasks (id, title, description, status, priority, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  insert: db.prepare<[string, string, string, string, string, number, number, string | null], DbRow>(
+    `INSERT INTO tasks (id, title, description, status, priority, created_at, updated_at, parent_task_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ),
   deleteById: db.prepare<[string], DbRow>(
     `DELETE FROM tasks WHERE id = ?`
@@ -73,13 +109,14 @@ function orderClause(sortBy?: "priority" | "createdAt"): string {
 
 function rowToTask(row: DbRow): Task {
   return {
-    id:          row.id,
-    title:       row.title,
-    description: row.description,
-    status:      row.status   as Task["status"],
-    priority:    row.priority as Task["priority"],
-    createdAt:   row.created_at,
-    updatedAt:   row.updated_at,
+    id:           row.id,
+    title:        row.title,
+    description:  row.description,
+    status:       row.status   as Task["status"],
+    priority:     row.priority as Task["priority"],
+    createdAt:    row.created_at,
+    updatedAt:    row.updated_at,
+    parentTaskId: row.parent_task_id ?? null,
   };
 }
 
@@ -117,7 +154,8 @@ export function createTask(input: CreateTaskInput): Task {
     input.status      ?? "todo",
     input.priority    ?? "medium",
     now,
-    now
+    now,
+    input.parentTaskId ?? null
   );
 
   const row = stmts.getById.get(id);
@@ -150,6 +188,13 @@ export function updateTask(id: string, input: UpdateTaskInput): Task {
   const updated = stmts.getById.get(id);
   if (!updated) throw new Error(`Failed to retrieve updated task: ${id}`);
   return rowToTask(updated);
+}
+
+export function getSubtasks(parentId: string): Task[] {
+  return db
+    .prepare<[string], DbRow>(`SELECT * FROM tasks WHERE parent_task_id = ? ORDER BY created_at ASC`)
+    .all(parentId)
+    .map(rowToTask);
 }
 
 export function deleteTask(id: string): void {

@@ -119,14 +119,12 @@ function makeExecutor(state: DecomposeState) {
         ? args.priority
         : "medium") as TaskPriority;
 
-      const taggedDescription =
-        `Parent: ${state.parentId}\n\n${description}`.slice(0, 5000);
-
       const created = createTask({
         title,
-        description: taggedDescription,
+        description: description.slice(0, 5000),
         status: "todo",
         priority,
+        parentTaskId: state.parentId,
       });
       state.createdSubtasks.push(created);
       return created;
