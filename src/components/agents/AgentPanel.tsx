@@ -70,6 +70,7 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
     runAgent,
     submitClarification,
     reset,
+    streamingToolCalls,
   } = useAgent();
 
   const [clarificationAnswer, setClarificationAnswer] = useState("");
@@ -171,9 +172,26 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
           )}
 
           {loading && (
-            <div className="flex items-center gap-2 text-xs text-[var(--muted)] mono">
-              <Loader2 size={14} className="animate-spin" />
-              Agent is thinking<AnimatedDots />
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-[var(--muted)] mono">
+                <Loader2 size={14} className="animate-spin" />
+                Agent is thinking<AnimatedDots />
+              </div>
+              {streamingToolCalls.length > 0 && (
+                <ul
+                  className="rounded-sm border divide-y"
+                  style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+                >
+                  {streamingToolCalls.map((e, i) => (
+                    <li key={i} className="p-2 text-xs mono">
+                      <span className="text-amber-400">→ {e.tool}</span>
+                      <span className="text-[10px] text-[var(--muted)] ml-2 truncate">
+                        {JSON.stringify(e.input).slice(0, 80)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 

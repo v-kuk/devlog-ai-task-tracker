@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { AgentResult, Task, BlockedTaskReport } from "@/types";
+import type { AgentResult, Task, BlockedTaskReport, ToolCallLog } from "@/types";
 import { getAllTasks } from "@/lib/db";
 import { runAgentLoop, getAnthropicClient, AGENT_MODEL } from "./loop";
 
@@ -128,9 +128,14 @@ function makeExecutor(tasks: Task[], state: UnblockState) {
   };
 }
 
-export async function runUnblockingAgent(tasks?: Task[]): Promise<AgentResult> {
+export interface UnblockOpts {
+  tasks?: Task[];
+  onToolCall?: (entry: ToolCallLog) => void;
+}
+
+export async function runUnblockingAgent(opts: UnblockOpts = {}): Promise<AgentResult> {
   const client = getAnthropicClient();
-  const taskList = tasks ?? getAllTasks({ status: "in-progress" });
+  const taskList = opts.tasks ?? getAllTasks({ status: "in-progress" });
 
   if (!client) {
     return {
@@ -168,6 +173,7 @@ export async function runUnblockingAgent(tasks?: Task[]): Promise<AgentResult> {
       },
     ],
     executeTool: makeExecutor(taskList, state),
+    onToolCall: opts.onToolCall,
   });
 
   return {

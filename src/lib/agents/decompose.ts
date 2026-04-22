@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { AgentResult, Task, TaskPriority } from "@/types";
+import type { AgentResult, Task, TaskPriority, ToolCallLog } from "@/types";
 import { createTask, getTaskById } from "@/lib/db";
 import { runAgentLoop, getAnthropicClient, AGENT_MODEL } from "./loop";
 
@@ -139,10 +139,16 @@ function makeExecutor(state: DecomposeState) {
   };
 }
 
+export interface DecomposeOpts {
+  clarificationAnswer?: string;
+  onToolCall?: (entry: ToolCallLog) => void;
+}
+
 export async function runDecompositionAgent(
   task: Task,
-  clarificationAnswer?: string
+  opts: DecomposeOpts = {}
 ): Promise<AgentResult> {
+  const { clarificationAnswer, onToolCall } = opts;
   const client = getAnthropicClient();
 
   if (!client) {
@@ -178,6 +184,7 @@ export async function runDecompositionAgent(
     initialMessages: [{ role: "user", content: userContent }],
     executeTool: makeExecutor(state),
     shouldStop: (name) => name === "request_clarification",
+    onToolCall,
   });
 
   if (state.needsClarification) {
@@ -202,7 +209,8 @@ export async function runDecompositionAgent(
 
 export async function runDecomposeAgent(
   taskId: string,
-  clarificationAnswer?: string
+  clarificationAnswer?: string,
+  onToolCall?: (entry: ToolCallLog) => void
 ): Promise<AgentResult> {
   const task = getTaskById(taskId);
   if (!task) {
@@ -215,5 +223,5 @@ export async function runDecomposeAgent(
       toolCallLog: [],
     };
   }
-  return runDecompositionAgent(task, clarificationAnswer);
+  return runDecompositionAgent(task, { clarificationAnswer, onToolCall });
 }
