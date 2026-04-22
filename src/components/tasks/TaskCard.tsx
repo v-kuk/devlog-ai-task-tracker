@@ -54,6 +54,7 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction }: TaskCardProps) 
 
   return (
     <div
+      data-task-id={task.id}
       className="fade-up group relative rounded-sm border transition-all duration-150 hover:border-[var(--border-hover)]"
       style={{ background: "var(--surface)", borderColor: "var(--border)" }}
     >

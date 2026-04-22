@@ -11,6 +11,7 @@ interface TaskListProps {
   error: string | null;
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
+  onAiAction?: (id: string) => void;
   onRetry?: () => void;
 }
 
@@ -33,7 +34,7 @@ function SkeletonCard() {
   );
 }
 
-export function TaskList({ tasks, loading, error, onDelete, onEdit, onRetry }: TaskListProps) {
+export function TaskList({ tasks, loading, error, onDelete, onEdit, onAiAction, onRetry }: TaskListProps) {
   const router = useRouter();
 
   if (loading) {
@@ -97,7 +98,13 @@ export function TaskList({ tasks, loading, error, onDelete, onEdit, onRetry }: T
   return (
     <div className="grid gap-3">
       {tasks.map((task) => (
-        <TaskCard key={task.id} task={task} onDelete={onDelete} onEdit={onEdit} />
+        <TaskCard
+          key={task.id}
+          task={task}
+          onDelete={onDelete}
+          onEdit={onEdit}
+          onAiAction={onAiAction}
+        />
       ))}
     </div>
   );
