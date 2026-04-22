@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, GitBranch, ArrowUpDown, Zap } from "lucide-react";
+import { ArrowLeft, Loader2, GitBranch, ArrowUpDown, Zap, ClipboardCopy, Check } from "lucide-react";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { AgentPanel } from "@/components/agents/AgentPanel";
 import { useTasks } from "@/hooks/useTasks";
 import type { Task, CreateTaskInput } from "@/types";
 import type { AgentMode } from "@/hooks/useAgent";
 import { displayId } from "@/lib/utils";
+import { buildTaskPrompt } from "@/lib/prompts/taskPrompt";
 
 interface EditPageProps {
   params: Promise<{ id: string }>;
@@ -24,6 +25,7 @@ export default function EditTaskPage({ params }: EditPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelMode, setPanelMode] = useState<AgentMode>("decompose");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -53,6 +55,34 @@ export default function EditTaskPage({ params }: EditPageProps) {
     },
     [updateTask, id, router]
   );
+
+  const handleCopyPrompt = useCallback(async () => {
+    if (!task) return;
+    let parent: Task | null = null;
+    if (task.parentTaskId) {
+      try {
+        const res = await fetch(`/api/tasks/${task.parentTaskId}`);
+        if (res.ok) {
+          const data = (await res.json()) as { task: Task };
+          parent = data.task;
+        }
+      } catch {
+        // graceful fallback
+      }
+    }
+    const prompt = buildTaskPrompt({
+      task,
+      parent,
+      displayId: task.sequence ? `DL-${task.sequence}` : undefined,
+    });
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch {
+      // fallback: not needed for modern browsers
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [task]);
 
   if (fetching) {
     return (
@@ -130,6 +160,15 @@ export default function EditTaskPage({ params }: EditPageProps) {
           >
             <Zap size={13} />
             <span className="mono">Unblock</span>
+          </button>
+          <button
+            onClick={handleCopyPrompt}
+            title="Copy task prompt for use in a separate chat"
+            className="flex items-center gap-2 px-3 py-2 text-xs rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-amber-400 hover:bg-[var(--surface-2)]"
+            style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface)" }}
+          >
+            {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
+            <span className="mono">{copied ? "Copied!" : "Copy prompt"}</span>
           </button>
         </div>
 

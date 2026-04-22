@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Pencil, Trash2, Sparkles, Clock } from "lucide-react";
+import { Pencil, Trash2, Sparkles, Clock, ClipboardCopy, Check } from "lucide-react";
 import type { Task } from "@/types";
 import type { TaskWithMeta } from "@/lib/db";
 import { displayId } from "@/lib/utils";
+import { buildTaskPrompt } from "@/lib/prompts/taskPrompt";
 
 interface TaskCardProps {
   task: Task | TaskWithMeta;
@@ -43,6 +44,21 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent }:
   const parentTitle = "parentTitle" in task ? task.parentTitle : null;
   const subtaskCount = "subtaskCount" in task ? task.subtaskCount : 0;
   const [confirming, setConfirming] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyPrompt = async () => {
+    const prompt = buildTaskPrompt({
+      task,
+      displayId: task.sequence ? `DL-${task.sequence}` : undefined,
+    });
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch {
+      // fallback: not needed for modern browsers
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   const status = STATUS_STYLES[task.status];
   const priority = PRIORITY_STYLES[task.priority];
@@ -109,6 +125,14 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent }:
               title="AI Actions"
             >
               <Sparkles size={13} />
+            </button>
+            <button
+              onClick={handleCopyPrompt}
+              title="Copy task prompt"
+              className="p-1 rounded-sm transition-colors hover:text-amber-400"
+              style={{ color: "var(--muted)" }}
+            >
+              {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
             </button>
           </div>
         </div>
