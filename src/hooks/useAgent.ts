@@ -84,8 +84,12 @@ export function useAgent(): UseAgentReturn {
     setLoading(false);
   }, []);
 
-  const awaitingClarification = !!result?.needsClarification;
-  const question = result?.question ?? null;
+  const awaitingClarification =
+    result?.type === "decompose" && result.needsClarification === true;
+  const question =
+    result?.type === "decompose" && result.needsClarification === true
+      ? result.question
+      : null;
 
   return {
     result,

@@ -148,6 +148,7 @@ export async function runDecompositionAgent(
   if (!client) {
     return {
       type: "decompose",
+      needsClarification: false,
       content: "",
       mocked: true,
       notice: "Set ANTHROPIC_API_KEY to enable real AI",
@@ -182,15 +183,16 @@ export async function runDecompositionAgent(
   if (state.needsClarification) {
     return {
       type: "decompose",
-      content: text,
       needsClarification: true,
-      question: state.question,
+      content: text,
+      question: state.question ?? "Please clarify this task.",
       toolCallLog,
     };
   }
 
   return {
     type: "decompose",
+    needsClarification: false,
     content: text,
     subtasks: state.createdSubtasks,
     summary: state.summary ?? text,
@@ -206,7 +208,9 @@ export async function runDecomposeAgent(
   if (!task) {
     return {
       type: "decompose",
+      needsClarification: false,
       content: "",
+      subtasks: [],
       notice: `Task ${taskId} not found`,
       toolCallLog: [],
     };

@@ -76,19 +76,41 @@ export interface BlockedTaskReport {
   nextActions: string[];
 }
 
-export interface AgentResult {
-  type: "prioritize" | "decompose" | "unblock";
+interface AgentResultBase {
   content: string;
-  summary?: string;
-  subtasks?: Task[];
-  recommendations?: AgentRecommendation[];
-  blockedTasks?: BlockedTaskReport[];
   toolCallLog?: ToolCallLog[];
-  needsClarification?: boolean;
-  question?: string;
   mocked?: boolean;
   notice?: string;
 }
+
+export interface PrioritizeResult extends AgentResultBase {
+  type: "prioritize";
+  summary?: string;
+  recommendations: AgentRecommendation[];
+}
+
+export interface DecomposeResultClarification extends AgentResultBase {
+  type: "decompose";
+  needsClarification: true;
+  question: string;
+}
+
+export interface DecomposeResultDone extends AgentResultBase {
+  type: "decompose";
+  needsClarification: false;
+  summary?: string;
+  subtasks: Task[];
+}
+
+export type DecomposeResult = DecomposeResultClarification | DecomposeResultDone;
+
+export interface UnblockResult extends AgentResultBase {
+  type: "unblock";
+  summary?: string;
+  blockedTasks: BlockedTaskReport[];
+}
+
+export type AgentResult = PrioritizeResult | DecomposeResult | UnblockResult;
 
 // ─── API Response Helpers ─────────────────────────────────────────────────────
 

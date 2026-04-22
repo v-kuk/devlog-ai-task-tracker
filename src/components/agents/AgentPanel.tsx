@@ -213,13 +213,11 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask }: AgentPan
           {/* Mode-specific sections */}
           {result && !error && (
             <>
-              {mode === "prioritize" && (
+              {result.type === "prioritize" && (
                 <PrioritizeSection result={result} onJumpToTask={handleJump} />
               )}
-              {mode === "decompose" && (
+              {result.type === "decompose" && (
                 <DecomposeSection
-                  awaitingClarification={awaitingClarification}
-                  question={question}
                   clarificationAnswer={clarificationAnswer}
                   setClarificationAnswer={setClarificationAnswer}
                   onSubmitClarification={handleSubmitClarification}
@@ -227,7 +225,7 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask }: AgentPan
                   loading={loading}
                 />
               )}
-              {mode === "unblock" && <UnblockSection result={result} />}
+              {result.type === "unblock" && <UnblockSection result={result} />}
 
               {/* Agent reasoning collapsible */}
               {result.toolCallLog && result.toolCallLog.length > 0 && (
@@ -269,7 +267,7 @@ function PrioritizeSection({
   result,
   onJumpToTask,
 }: {
-  result: import("@/types").AgentResult;
+  result: import("@/types").PrioritizeResult;
   onJumpToTask: (id: string) => void;
 }) {
   const recs = result.recommendations ?? [];
@@ -327,25 +325,22 @@ function PrioritizeSection({
 // ─── Decompose ────────────────────────────────────────────────────────────────
 
 interface DecomposeSectionProps {
-  awaitingClarification: boolean;
-  question: string | null;
   clarificationAnswer: string;
   setClarificationAnswer: (v: string) => void;
   onSubmitClarification: () => void;
-  result: import("@/types").AgentResult;
+  result: import("@/types").DecomposeResult;
   loading: boolean;
 }
 
 function DecomposeSection({
-  awaitingClarification,
-  question,
   clarificationAnswer,
   setClarificationAnswer,
   onSubmitClarification,
   result,
   loading,
 }: DecomposeSectionProps) {
-  if (awaitingClarification && question) {
+  if (result.needsClarification) {
+    const question = result.question;
     return (
       <div
         className="rounded-sm border p-4 space-y-3"
@@ -433,7 +428,7 @@ function priorityBadgeClass(p: "low" | "medium" | "high"): string {
 
 // ─── Unblock ──────────────────────────────────────────────────────────────────
 
-function UnblockSection({ result }: { result: import("@/types").AgentResult }) {
+function UnblockSection({ result }: { result: import("@/types").UnblockResult }) {
   const blocked = result.blockedTasks ?? [];
   if (blocked.length === 0) {
     return (

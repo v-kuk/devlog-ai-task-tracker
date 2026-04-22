@@ -24,13 +24,26 @@ async function runRealAgent() {
   }
 
   console.log("\n===== RESULT =====");
+  console.log("type             :", result.type);
   console.log("mocked           :", result.mocked ?? false);
-  console.log("needsClarification:", result.needsClarification ?? false);
-  console.log("question         :", result.question ?? "-");
-  console.log("summary          :", result.summary ?? "-");
-  console.log("subtaskCount     :", result.subtasks?.length ?? 0);
 
-  if (result.subtasks?.length) {
+  if (result.type !== "decompose") {
+    console.log("(unexpected agent type)");
+    deleteTask(parent.id);
+    return;
+  }
+
+  if (result.needsClarification) {
+    console.log("needsClarification: true");
+    console.log("question         :", result.question);
+    deleteTask(parent.id);
+    return;
+  }
+
+  console.log("summary          :", result.summary ?? "-");
+  console.log("subtaskCount     :", result.subtasks.length);
+
+  if (result.subtasks.length) {
     console.log("\n===== DB VERIFY =====");
     for (const st of result.subtasks) {
       const fresh = getTaskById(st.id);
@@ -40,7 +53,7 @@ async function runRealAgent() {
     }
   }
 
-  for (const st of result.subtasks ?? []) {
+  for (const st of result.subtasks) {
     try { deleteTask(st.id); } catch {}
   }
   deleteTask(parent.id);
