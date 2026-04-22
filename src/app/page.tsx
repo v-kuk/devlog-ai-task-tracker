@@ -54,6 +54,10 @@ function HomeContent() {
 
   const closePanel = useCallback(() => setPanelOpen(false), []);
 
+  const handleTasksChanged = useCallback(() => {
+    fetchTasks(new URLSearchParams(searchParams.toString()));
+  }, [fetchTasks, searchParams]);
+
   useCommandKey("k", () => router.push("/tasks/new"));
 
   return (
@@ -129,9 +133,7 @@ function HomeContent() {
           mode={panelMode}
           task={panelTask}
           onClose={closePanel}
-          onTasksChanged={() =>
-            fetchTasks(new URLSearchParams(searchParams.toString()))
-          }
+          onTasksChanged={handleTasksChanged}
         />
       </ErrorBoundary>
     </div>

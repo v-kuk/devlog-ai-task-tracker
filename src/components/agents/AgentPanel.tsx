@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Loader2,
   AlertCircle,
@@ -75,10 +75,17 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
 
   const [clarificationAnswer, setClarificationAnswer] = useState("");
   const [showReasoning, setShowReasoning] = useState(false);
+  const notifiedRef = useRef<typeof result | null>(null);
 
   // Notify parent when decompose writes subtasks so task list can re-fetch.
   useEffect(() => {
-    if (result?.type === "decompose" && !result.needsClarification && result.subtasks.length > 0) {
+    if (
+      result?.type === "decompose" &&
+      !result.needsClarification &&
+      result.subtasks.length > 0 &&
+      notifiedRef.current !== result
+    ) {
+      notifiedRef.current = result;
       onTasksChanged?.();
     }
   }, [result, onTasksChanged]);
@@ -89,6 +96,7 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
       reset();
       setClarificationAnswer("");
       setShowReasoning(false);
+      notifiedRef.current = null;
     }
   }, [open, reset]);
 
