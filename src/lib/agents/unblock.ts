@@ -17,9 +17,9 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
-    name: "analyze_complexity",
+    name: "measure_description_complexity",
     description:
-      "Analyzes task description for scope/complexity. Returns { isTooBig, suggestion }.",
+      "Returns raw complexity metrics for a task description: character length, conjunction count ('and'/'or'), sentence count. YOU interpret these. No suggestions.",
     input_schema: {
       type: "object",
       properties: {
@@ -30,28 +30,35 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
-    name: "generate_unblock_plan",
+    name: "record_unblock_report",
     description:
-      "Generates concrete questions + nextActions for a blocked task. Pass specific issues[] found.",
+      "Stores YOUR analysis for a blocked task. Call once per blocked task. You write the questions and nextActions — each must be specific to the task, not generic template text. Return the report object back to caller.",
     input_schema: {
       type: "object",
       properties: {
         taskId: { type: "string" },
-        issues: { type: "array", items: { type: "string" } },
+        questions: {
+          type: "array",
+          items: { type: "string" },
+          description: "Root-cause questions specific to this task (2-4).",
+        },
+        nextActions: {
+          type: "array",
+          items: { type: "string" },
+          description: "Concrete next actions doable today (2-4).",
+        },
       },
-      required: ["taskId", "issues"],
+      required: ["taskId", "questions", "nextActions"],
     },
   },
 ];
 
 const SYSTEM = `You are a team lead helping unblock stuck work.
 FLOW:
-1. Call identify_blocked_tasks(3) first
-2. For EACH blocked task call analyze_complexity
-3. For EACH blocked task call generate_unblock_plan with specific issues found
-Be concrete. No generic advice.
-Questions should identify ROOT CAUSE.
-Next actions must be specific and doable today.`;
+1. Call identify_blocked_tasks(3) first.
+2. For EACH blocked task, call measure_description_complexity to get raw metrics, then reason about what's actually blocking the task.
+3. For EACH blocked task, call record_unblock_report with YOUR OWN questions and nextActions — specific to the task title, description, and how long it has been stuck. Never template text like "Review with a teammate". Write concrete, task-specific content.
+4. End your turn after all reports are recorded.`;
 
 function daysBetween(a: number, b: number): number {
   return Math.max(0, Math.floor((b - a) / DAY_MS));
@@ -87,49 +94,34 @@ function makeExecutor(tasks: Task[], state: UnblockState) {
       return blocked;
     }
 
-    if (name === "analyze_complexity") {
+    if (name === "measure_description_complexity") {
       const id = String(args.taskId);
       const desc = String(args.description ?? byId.get(id)?.description ?? "");
-      const len = desc.length;
-      const hasAnd = (desc.match(/\band\b/gi) || []).length;
-      const isTooBig = len > 400 || hasAnd >= 4;
-      return {
-        taskId: id,
-        isTooBig,
-        suggestion: isTooBig
-          ? "Task covers multiple concerns — split into focused subtasks."
-          : "Scope looks reasonable — focus on a concrete next step.",
-      };
+      const charCount = desc.length;
+      const conjunctionCount = (desc.match(/\b(and|or)\b/gi) || []).length;
+      const sentenceCount = desc.split(/[.!?]+/).filter((s) => s.trim().length > 0).length;
+      return { taskId: id, charCount, conjunctionCount, sentenceCount };
     }
 
-    if (name === "generate_unblock_plan") {
+    if (name === "record_unblock_report") {
       const id = String(args.taskId);
-      const issues = Array.isArray(args.issues) ? (args.issues as string[]).map(String) : [];
+      const questions = Array.isArray(args.questions)
+        ? (args.questions as unknown[]).map(String).filter((q) => q.trim().length > 0).slice(0, 6)
+        : [];
+      const nextActions = Array.isArray(args.nextActions)
+        ? (args.nextActions as unknown[]).map(String).filter((a) => a.trim().length > 0).slice(0, 6)
+        : [];
       const t = byId.get(id);
       if (!t) return { error: `Task ${id} not found` };
 
-      const questions = issues.length
-        ? issues.slice(0, 3).map((iss) => `What is blocking resolution of: ${iss}?`)
-        : [`What specific step is blocking progress on "${t.title}"?`];
-      const nextActions = [
-        `Review "${t.title}" with a teammate for 15 minutes today.`,
-        `Write down the single smallest next step and commit it before EOD.`,
-      ];
+      state.reports.set(id, {
+        task: t,
+        daysStuck: daysBetween(t.updatedAt, now),
+        questions,
+        nextActions,
+      });
 
-      const existing = state.reports.get(id);
-      if (existing) {
-        existing.questions = questions;
-        existing.nextActions = nextActions;
-      } else {
-        state.reports.set(id, {
-          task: t,
-          daysStuck: daysBetween(t.updatedAt, now),
-          questions,
-          nextActions,
-        });
-      }
-
-      return { taskId: id, questions, nextActions };
+      return { taskId: id, stored: true, questions, nextActions };
     }
 
     return { error: `Unknown tool: ${name}` };
