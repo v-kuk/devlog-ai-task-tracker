@@ -48,7 +48,7 @@ src/
 │   ├── tasks/[id]/edit/         # Edit page + per-task agent triggers
 │   └── api/
 │       ├── tasks/               # GET/POST/PATCH/DELETE task CRUD
-│       └── agents/              # POST prioritize | decompose | unblock
+│       └── agents/              # POST + SSE streaming routes (prioritize | decompose | unblock)
 ├── components/
 │   ├── ErrorBoundary.tsx        # Wraps AgentPanel
 │   ├── agents/AgentPanel.tsx    # Sheet-based agent UI (3 modes)
@@ -80,7 +80,7 @@ Every agent uses the same core loop (`src/lib/agents/loop.ts`):
 3. Repeat until `stop_reason === "end_turn"` (or an early-stop predicate fires — decompose uses this for `request_clarification`).
 4. Return `{ text, toolCallLog }` — the full log is exposed in the UI under "Agent reasoning".
 
-Tool implementations are pure TypeScript and hit the same SQLite layer the REST API uses. `create_subtask` (decompose) writes real rows via `lib/db.ts#createTask`, tagged with `Parent: <id>` in the description (schema has no dedicated `parentTaskId` column yet).
+Tool implementations are pure TypeScript and hit the same SQLite layer the REST API uses. `create_subtask` (decompose) writes real rows via `lib/db.ts#createTask`, setting `parent_task_id` on the row — no more `"Parent: <id>"` prefix in the description. The schema backfills the column on startup for any legacy rows.
 
 ## UI flow
 
@@ -102,11 +102,30 @@ Tool implementations are pure TypeScript and hit the same SQLite layer the REST 
 | GET    | `/api/tasks/[id]`        | —                                  | `{ task: Task }` or 404 |
 | PATCH  | `/api/tasks/[id]`        | `UpdateTaskInput`                  | `{ task: Task }`        |
 | DELETE | `/api/tasks/[id]`        | —                                  | 204                     |
-| POST   | `/api/agents/prioritize` | —                                  | `AgentResult`           |
-| POST   | `/api/agents/decompose`  | `{ taskId, clarificationAnswer? }` | `AgentResult`           |
-| POST   | `/api/agents/unblock`    | —                                  | `AgentResult`           |
+| POST   | `/api/agents/prioritize`        | —                                  | `AgentResult`           |
+| POST   | `/api/agents/decompose`         | `{ taskId, clarificationAnswer? }` | `AgentResult`           |
+| POST   | `/api/agents/unblock`           | —                                  | `AgentResult`           |
+| POST   | `/api/agents/prioritize/stream` | same as above                      | SSE stream              |
+| POST   | `/api/agents/decompose/stream`  | same as above                      | SSE stream              |
+| POST   | `/api/agents/unblock/stream`    | same as above                      | SSE stream              |
 
-All agent routes send `cache-control: no-store` and return a mock `AgentResult` when `ANTHROPIC_API_KEY` is unset.
+All agent routes return a mock `AgentResult` when `ANTHROPIC_API_KEY` is unset.
+
+### SSE event shape
+
+Each `/stream` endpoint is a `text/event-stream` response. The client (`useAgent` hook) consumes it via `consumeSse` in `src/lib/agents/sse-client.ts`.
+
+| Event        | Payload                     | When                                      |
+| ------------ | --------------------------- | ----------------------------------------- |
+| `tool_call`  | `ToolCallLog` object        | After each tool executes (zero or more)   |
+| `done`       | `AgentResult` object        | Agent finished (success or mock)          |
+| `error`      | `{ message: string }`       | Unhandled exception or missing `taskId`   |
+
+The UI renders live `tool_call` entries in the loading state ("Agent is thinking…") so the user sees progress without polling.
+
+## Security
+
+`docs/PROMPT_INJECTION.md` documents how the agents are hardened against prompt-injection attacks embedded in task titles/descriptions.
 
 ## Smoke test
 
