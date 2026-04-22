@@ -3,13 +3,15 @@
 import { useState, useCallback } from "react";
 import { Pencil, Trash2, Sparkles, Clock } from "lucide-react";
 import type { Task } from "@/types";
+import type { TaskWithMeta } from "@/lib/db";
 import { displayId } from "@/lib/utils";
 
 interface TaskCardProps {
-  task: Task;
+  task: Task | TaskWithMeta;
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
   onAiAction?: (id: string) => void;
+  onJumpToParent?: (id: string) => void;
 }
 
 const STATUS_STYLES: Record<Task["status"], { label: string; className: string }> = {
@@ -37,7 +39,9 @@ function relativeTime(ts: number): string {
   return `${months}mo ago`;
 }
 
-export function TaskCard({ task, onDelete, onEdit, onAiAction }: TaskCardProps) {
+export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent }: TaskCardProps) {
+  const parentTitle = "parentTitle" in task ? task.parentTitle : null;
+  const subtaskCount = "subtaskCount" in task ? task.subtaskCount : 0;
   const [confirming, setConfirming] = useState(false);
 
   const status = STATUS_STYLES[task.status];
@@ -109,6 +113,16 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction }: TaskCardProps) 
           </div>
         </div>
 
+        {/* Parent chip */}
+        {task.parentTaskId && parentTitle && (
+          <button
+            onClick={() => onJumpToParent?.(task.parentTaskId!)}
+            className="flex items-center gap-1 text-[10px] mono text-[var(--muted)] hover:text-amber-400 mb-1"
+          >
+            ↳ Subtask of <span className="truncate max-w-[200px] ml-1">{parentTitle}</span>
+          </button>
+        )}
+
         {/* Title */}
         <h3 className="font-semibold text-[var(--foreground)] text-sm leading-snug mb-1">
           <span className="mono text-[10px] text-[var(--muted)] mr-1">{displayId(task.sequence)}</span>
@@ -128,6 +142,11 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction }: TaskCardProps) 
           <span className="mono text-[10px] text-[var(--muted)]">
             {relativeTime(task.createdAt)}
           </span>
+          {(subtaskCount ?? 0) > 0 && (
+            <span className="mono text-[10px] px-1.5 py-0.5 rounded-sm border" style={{ borderColor: "var(--border)" }}>
+              {subtaskCount} subtasks
+            </span>
+          )}
           {confirming && (
             <span className="ml-auto text-[10px] text-red-400 mono animate-pulse">
               click again to confirm

@@ -93,6 +93,11 @@ export interface GetAllTasksFilters {
   sortBy?: "priority" | "createdAt";
 }
 
+export interface TaskWithMeta extends Task {
+  subtaskCount: number;
+  parentTitle: string | null;
+}
+
 // ─── Prepared Statements ──────────────────────────────────────────────────────
 
 const stmts = {
@@ -151,6 +156,50 @@ export function getAllTasks(filters?: GetAllTasksFilters): Task[] {
     .prepare<[], DbRow>(`SELECT * FROM tasks ORDER BY ${order}`)
     .all()
     .map(rowToTask);
+}
+
+interface DbRowWithMeta extends DbRow {
+  subtask_count: number;
+  parent_title: string | null;
+}
+
+function rowToTaskWithMeta(row: DbRowWithMeta): TaskWithMeta {
+  return {
+    ...rowToTask(row),
+    subtaskCount: row.subtask_count,
+    parentTitle: row.parent_title ?? null,
+  };
+}
+
+export function getAllTasksWithMeta(filters?: GetAllTasksFilters): TaskWithMeta[] {
+  const order = orderClause(filters?.sortBy);
+
+  if (filters?.status) {
+    return db
+      .prepare<[string], DbRowWithMeta>(
+        `SELECT t.*,
+           (SELECT COUNT(*) FROM tasks c WHERE c.parent_task_id = t.id) AS subtask_count,
+           p.title AS parent_title
+         FROM tasks t
+         LEFT JOIN tasks p ON p.id = t.parent_task_id
+         WHERE t.status = ?
+         ORDER BY ${order}`
+      )
+      .all(filters.status)
+      .map(rowToTaskWithMeta);
+  }
+
+  return db
+    .prepare<[], DbRowWithMeta>(
+      `SELECT t.*,
+         (SELECT COUNT(*) FROM tasks c WHERE c.parent_task_id = t.id) AS subtask_count,
+         p.title AS parent_title
+       FROM tasks t
+       LEFT JOIN tasks p ON p.id = t.parent_task_id
+       ORDER BY ${order}`
+    )
+    .all()
+    .map(rowToTaskWithMeta);
 }
 
 export function getTaskById(id: string): Task | null {

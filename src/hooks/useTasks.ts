@@ -2,9 +2,10 @@
 
 import { useState, useCallback } from "react";
 import type { Task, CreateTaskInput, UpdateTaskInput } from "@/types";
+import type { TaskWithMeta } from "@/lib/db";
 
 interface UseTasksState {
-  tasks: Task[];
+  tasks: TaskWithMeta[];
   loading: boolean;
   error: string | null;
 }
@@ -29,7 +30,7 @@ export function useTasks(): UseTasksReturn {
       const qs = params?.toString() ? `?${params.toString()}` : "";
       const res = await fetch(`/api/tasks${qs}`);
       if (!res.ok) throw new Error(`Failed to fetch tasks (${res.status})`);
-      const data = (await res.json()) as { tasks: Task[] };
+      const data = (await res.json()) as { tasks: TaskWithMeta[] };
       setState({ tasks: data.tasks, loading: false, error: null });
     } catch (err) {
       setState((s) => ({

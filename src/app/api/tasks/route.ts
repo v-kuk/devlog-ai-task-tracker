@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllTasks, createTask } from "@/lib/db";
+import { getAllTasksWithMeta, createTask } from "@/lib/db";
 import { CreateTaskInputSchema } from "@/types";
 import type { GetAllTasksFilters } from "@/lib/db";
 
@@ -13,7 +13,7 @@ export function GET(req: NextRequest): NextResponse {
     const sortBy: GetAllTasksFilters["sortBy"] =
       sortByRaw === "priority" || sortByRaw === "createdAt" ? sortByRaw : undefined;
 
-    const tasks = getAllTasks({ status, sortBy });
+    const tasks = getAllTasksWithMeta({ status, sortBy });
     return NextResponse.json({ tasks });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";

@@ -98,5 +98,12 @@ html, body {
 }
 .fade-up { animation: fadeUp 0.2s ease forwards; }
 
+@keyframes flashHighlight {
+  0%   { box-shadow: 0 0 0 2px var(--accent); }
+  80%  { box-shadow: 0 0 0 2px var(--accent); }
+  100% { box-shadow: none; }
+}
+.flash-highlight { animation: flashHighlight 1s ease forwards; }
+
 /* shadcn overrides for dark theme */
 .border { border-color: var(--border) !important; }

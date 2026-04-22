@@ -3,16 +3,17 @@
 import { useRouter } from "next/navigation";
 import { AlertCircle, RefreshCw, PlusCircle } from "lucide-react";
 import { TaskCard } from "./TaskCard";
-import type { Task } from "@/types";
+import type { TaskWithMeta } from "@/lib/db";
 
 interface TaskListProps {
-  tasks: Task[];
+  tasks: TaskWithMeta[];
   loading: boolean;
   error: string | null;
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
   onAiAction?: (id: string) => void;
   onRetry?: () => void;
+  onJumpToParent?: (id: string) => void;
 }
 
 function SkeletonCard() {
@@ -34,7 +35,7 @@ function SkeletonCard() {
   );
 }
 
-export function TaskList({ tasks, loading, error, onDelete, onEdit, onAiAction, onRetry }: TaskListProps) {
+export function TaskList({ tasks, loading, error, onDelete, onEdit, onAiAction, onRetry, onJumpToParent }: TaskListProps) {
   const router = useRouter();
 
   if (loading) {
@@ -104,6 +105,7 @@ export function TaskList({ tasks, loading, error, onDelete, onEdit, onAiAction, 
           onDelete={onDelete}
           onEdit={onEdit}
           onAiAction={onAiAction}
+          onJumpToParent={onJumpToParent}
         />
       ))}
     </div>

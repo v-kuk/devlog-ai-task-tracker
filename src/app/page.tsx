@@ -54,6 +54,14 @@ function HomeContent() {
 
   const closePanel = useCallback(() => setPanelOpen(false), []);
 
+  const handleJumpToParent = useCallback((parentId: string) => {
+    const el = document.querySelector<HTMLElement>(`[data-task-id="${parentId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("flash-highlight");
+    setTimeout(() => el.classList.remove("flash-highlight"), 1000);
+  }, []);
+
   const handleTasksChanged = useCallback(() => {
     fetchTasks(new URLSearchParams(searchParams.toString()));
   }, [fetchTasks, searchParams]);
@@ -115,6 +123,7 @@ function HomeContent() {
           onEdit={handleEdit}
           onAiAction={handleAiAction}
           onRetry={() => fetchTasks(new URLSearchParams(searchParams.toString()))}
+          onJumpToParent={handleJumpToParent}
         />
       </main>
 
