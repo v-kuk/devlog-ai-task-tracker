@@ -1,17 +1,20 @@
 "use client";
 
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { useTasks } from "@/hooks/useTasks";
-import type { CreateTaskInput } from "@/types";
+import type { CreateTaskInput, Task } from "@/types";
 
 export default function NewTaskPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { createTask } = useTasks();
   const [isLoading, setIsLoading] = useState(false);
+
+  const statusParam = searchParams.get("status") as Task["status"] | null;
 
   const handleSubmit = useCallback(
     async (data: CreateTaskInput) => {
@@ -56,6 +59,7 @@ export default function NewTaskPage() {
             onSubmit={handleSubmit}
             onCancel={() => router.back()}
             isLoading={isLoading}
+            initialValues={statusParam ? { status: statusParam } : undefined}
           />
         </div>
       </div>

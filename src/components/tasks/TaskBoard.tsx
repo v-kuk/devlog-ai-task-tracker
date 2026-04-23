@@ -115,7 +115,7 @@ export function TaskBoard({
                   <span className="mono text-2xl text-[var(--border)]">∅</span>
                   <span className="mono text-[10px] text-[var(--muted)]">No tasks</span>
                   <button
-                    onClick={() => router.push("/tasks/new")}
+                    onClick={() => router.push(`/tasks/new?status=${status}`)}
                     className="flex items-center gap-1.5 mono text-[10px] px-2 py-1 rounded-sm border transition-colors hover:border-amber-500 hover:text-amber-400 mt-1"
                     style={{ borderColor: "var(--border)", color: "var(--muted)" }}
                   >
@@ -124,19 +124,29 @@ export function TaskBoard({
                   </button>
                 </div>
               ) : (
-                col.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onDelete={onDelete}
-                    onEdit={onEdit}
-                    onAiAction={onAiAction}
-                    onStatusAction={onStatusAction}
-                    onJumpToParent={onJumpToParent}
-                    onFilterSubtasks={onFilterSubtasks}
-                    onStatusChange={onStatusChange}
-                  />
-                ))
+                <>
+                  {col.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onDelete={onDelete}
+                      onEdit={onEdit}
+                      onAiAction={onAiAction}
+                      onStatusAction={onStatusAction}
+                      onJumpToParent={onJumpToParent}
+                      onFilterSubtasks={onFilterSubtasks}
+                      onStatusChange={onStatusChange}
+                    />
+                  ))}
+                  <button
+                    onClick={() => router.push(`/tasks/new?status=${status}`)}
+                    className="flex items-center gap-1.5 mono text-[10px] px-2 py-1 rounded-sm border transition-colors hover:border-amber-500 hover:text-amber-400 self-start"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  >
+                    <PlusCircle size={10} />
+                    Add task
+                  </button>
+                </>
               )}
             </div>
           </div>
