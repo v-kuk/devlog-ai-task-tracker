@@ -1,145 +1,84 @@
 # DevLog
 
-AI-powered developer task tracker. Plain CRUD on top of SQLite, plus three Claude-driven agents that analyze your backlog with real multi-turn tool calling.
+AI-powered task tracker. Standard CRUD on SQLite plus four Claude agents that do real multi-turn tool calling — not single prompts, an actual loop.
+
+The interesting parts are the agent architecture, not the task manager.
 
 ## What it does
 
-- **Tasks** — create, edit, delete, filter by status, sort by priority or recency
-- **Prioritize agent** — reviews your whole task list and recommends top 3 to work on today (considers age, priority, stuck time)
-- **Decompose agent** — breaks a task into subtasks. If the task is ambiguous, the agent asks a clarifying question before decomposing
-- **Unblock agent** — finds in-progress tasks stuck ≥3 days and generates root-cause questions + concrete next actions
+- **Tasks** — create, edit, delete, filter by status/priority, list and board (kanban) views
+- **Agent history** — runs are stored locally; reopen and reuse previous outputs
+- **Four agents** — each with dedicated tools and a real tool-call loop:
 
-Each agent runs a real tool-call loop with Claude (`claude-sonnet-4-6` by default). Without an API key it falls back to deterministic mock responses so the UI stays usable.
+| Agent | Tools | What it does |
+|-------|-------|-------------|
+| **Prioritize** | 3 | Scores every task (age × priority × blocked time), returns top 3 with reasoning |
+| **Decompose** | 6 | Assesses clarity, asks a question if ambiguous, then creates/keeps/deletes subtasks |
+| **Unblock** | 3 | Finds tasks stuck in-progress ≥3 days, generates root-cause questions + next actions |
+| **Status** | 2 | Reads task + subtasks, writes a tone-matched Slack-style update |
 
-## Stack
-
-- **Next.js 16** App Router + Turbopack, React 19
-- **SQLite** via `better-sqlite3` (`devlog.db` in repo root)
-- **Anthropic SDK** (`@anthropic-ai/sdk`) for agent tool-calling
-- **Tailwind** + shadcn-style components (Radix primitives)
-- **Zod** for schema validation
-- TypeScript strict
+All agents stream tool call events over SSE — you see the reasoning live as it runs.
 
 ## Getting started
 
 ```bash
-# 1. Install
 npm install
-
-# 2. Add Anthropic key (optional — without it agents return mock responses)
-cp .env.example .env.local
-# edit .env.local and set ANTHROPIC_API_KEY=sk-ant-...
-
-# 3. Run
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env.local
 npm run dev
 # open http://localhost:3000
 ```
 
-Required: Node **≥20.9.0** (better-sqlite3 + Next 16). If you see a `NODE_MODULE_VERSION` mismatch, run `npm rebuild better-sqlite3`.
+Without an API key the agents return deterministic mock responses — the full UI still works.
 
-## Project layout
-
-```
-src/
-├── app/
-│   ├── layout.tsx               # Root — dark/light aware shell
-│   ├── page.tsx                 # Home — task list, filters, agent triggers, Cmd+K
-│   ├── tasks/new/               # Create page
-│   ├── tasks/[id]/edit/         # Edit page + per-task agent triggers
-│   └── api/
-│       ├── tasks/               # GET/POST/PATCH/DELETE task CRUD
-│       └── agents/              # POST + SSE streaming routes (prioritize | decompose | unblock)
-├── components/
-│   ├── ErrorBoundary.tsx        # Wraps AgentPanel
-│   ├── agents/AgentPanel.tsx    # Sheet-based agent UI (3 modes)
-│   ├── tasks/                   # TaskCard, TaskList, TaskForm, TaskFilters
-│   └── ui/                      # shadcn primitives (button, sheet, ...)
-├── hooks/
-│   ├── useTasks.ts              # Fetch + mutate tasks
-│   ├── useAgent.ts              # Fire agent endpoints + clarification flow
-│   └── useCommandKey.ts         # Cmd/Ctrl+K shortcut hook
-├── lib/
-│   ├── db.ts                    # SQLite CRUD with prepared statements
-│   ├── utils.ts                 # cn() helper
-│   └── agents/
-│       ├── loop.ts              # Generic Claude tool-call loop
-│       ├── prioritize.ts        # 3 tools: age, blocked list, priority score
-│       ├── decompose.ts         # 4 tools: assess, clarify, create, finalize
-│       └── unblock.ts           # 3 tools: identify, complexity, plan
-└── types/                       # Zod schemas + TS types
-scripts/
-└── test-decompose.ts            # Tool-call-log smoke test
-```
+Node ≥20.9 required. If you see a `NODE_MODULE_VERSION` mismatch: `npm rebuild better-sqlite3`.
 
 ## Agent architecture
 
-Every agent uses the same core loop (`src/lib/agents/loop.ts`):
+Every agent runs through the same generic loop (`src/lib/agents/loop.ts`):
 
-1. Send messages + tool definitions to Claude.
-2. If response contains `tool_use` blocks: execute each tool server-side, feed results back as `tool_result`.
-3. Repeat until `stop_reason === "end_turn"` (or an early-stop predicate fires — decompose uses this for `request_clarification`).
-4. Return `{ text, toolCallLog }` — the full log is exposed in the UI under "Agent reasoning".
-
-Tool implementations are pure TypeScript and hit the same SQLite layer the REST API uses. `create_subtask` (decompose) writes real rows via `lib/db.ts#createTask`, setting `parent_task_id` on the row — no more `"Parent: <id>"` prefix in the description. The schema backfills the column on startup for any legacy rows.
-
-## UI flow
-
-- **Home** — sticky header with `DevLog` logo, Prioritize + Scan-for-blockers buttons, task count. Sparkles icon on each card opens Decompose in a right-side Sheet.
-- **Cmd/Ctrl+K** — jump to new-task page from anywhere on home (ignored while typing in inputs).
-- **AgentPanel** — single Sheet component, three modes:
-  - *prioritize* — numbered recs with Jump-to-task (scrolls + flash-highlights card)
-  - *decompose* — clarification textarea *or* subtask checklist with priority badges
-  - *unblock* — cards per stuck task with severity badge, questions, next actions
-- **Error boundary** around the panel — catches render errors, shows reset button
-- **Dark/light** — follows `prefers-color-scheme`; add `class="dark"` / `class="light"` on `<html>` to force
-
-## API endpoints
-
-| Method | Path                     | Body                               | Returns                 |
-| ------ | ------------------------ | ---------------------------------- | ----------------------- |
-| GET    | `/api/tasks`             | query: `status`, `sortBy`          | `{ tasks: Task[] }`     |
-| POST   | `/api/tasks`             | `CreateTaskInput`                  | `{ task: Task }`        |
-| GET    | `/api/tasks/[id]`        | —                                  | `{ task: Task }` or 404 |
-| PATCH  | `/api/tasks/[id]`        | `UpdateTaskInput`                  | `{ task: Task }`        |
-| DELETE | `/api/tasks/[id]`        | —                                  | 204                     |
-| POST   | `/api/agents/prioritize`        | —                                  | `AgentResult`           |
-| POST   | `/api/agents/decompose`         | `{ taskId, clarificationAnswer? }` | `AgentResult`           |
-| POST   | `/api/agents/unblock`           | —                                  | `AgentResult`           |
-| POST   | `/api/agents/prioritize/stream` | same as above                      | SSE stream              |
-| POST   | `/api/agents/decompose/stream`  | same as above                      | SSE stream              |
-| POST   | `/api/agents/unblock/stream`    | same as above                      | SSE stream              |
-
-All agent routes return a mock `AgentResult` when `ANTHROPIC_API_KEY` is unset.
-
-### SSE event shape
-
-Each `/stream` endpoint is a `text/event-stream` response. The client (`useAgent` hook) consumes it via `consumeSse` in `src/lib/agents/sse-client.ts`.
-
-| Event        | Payload                     | When                                      |
-| ------------ | --------------------------- | ----------------------------------------- |
-| `tool_call`  | `ToolCallLog` object        | After each tool executes (zero or more)   |
-| `done`       | `AgentResult` object        | Agent finished (success or mock)          |
-| `error`      | `{ message: string }`       | Unhandled exception or missing `taskId`   |
-
-The UI renders live `tool_call` entries in the loading state ("Agent is thinking…") so the user sees progress without polling.
-
-## Security
-
-`docs/PROMPT_INJECTION.md` documents how the agents are hardened against prompt-injection attacks embedded in task titles/descriptions.
-
-## Smoke test
-
-```bash
-npx tsx scripts/test-decompose.ts
+```
+LLM response → extract tool_use blocks → execute each server-side
+             → feed tool_result back   → repeat until end_turn
 ```
 
-Runs the decompose loop against a fabricated parent task, prints every tool call with input/output, and verifies `create_subtask` persists rows to SQLite. Falls back to a scripted fake Anthropic client when the API key is missing, so you can validate the loop offline.
+Tools hit the same SQLite layer as the REST API. Tool implementations return data — the LLM does the reasoning. This is by design: unblock's `measure_description_complexity` returns raw character count, conjunction count, and sentence count with the instruction "YOU interpret these. No suggestions." The LLM decides what they mean.
 
-## Scripts
+Three design decisions worth noting:
 
-```bash
-npm run dev      # Turbopack dev on :3000
-npm run build    # Production build
-npm run start    # Run production server
-npm run lint     # Next lint (needs Node ≥20)
+**Early-stop predicate.** Decompose passes `shouldStop: (name) => name === "request_clarification"` to the loop. When Claude calls that tool, execution halts and the UI renders a clarification textarea. The answer is injected as a `user` message in the next run — interactive agent, no extra state machine.
+
+**Subtask diffing.** Decompose has `keep_subtask` and `delete_subtask` tools alongside `create_subtask`. On re-runs the agent reads existing subtasks and decides what to keep, drop, or add — no duplicates, incremental improvement.
+
+**Prompt injection hardening.** User content passes through `src/lib/agents/sanitize.ts`: role boundary tokens from six model families are stripped, all user data is wrapped in `<user_task_data>` delimiters, and system prompts explicitly tell Claude to treat that block as untrusted.
+
+## Stack
+
+- Next.js 16 (App Router), React 19, TypeScript strict
+- SQLite via `better-sqlite3` — sync API, WAL mode, prepared statements
+- Anthropic SDK — `claude-sonnet-4-6` by default, override via `ANTHROPIC_MODEL`
+- Tailwind + Radix primitives, Zod validation
+
+## Layout
+
 ```
+src/lib/agents/
+  loop.ts          # generic tool-call loop (~80 lines)
+  prioritize.ts    # analyze_task_age · get_blocked_tasks · calculate_priority_score
+  decompose.ts     # assess_clarity · request_clarification · keep_subtask · delete_subtask · create_subtask · finalize_decomposition
+  unblock.ts       # identify_blocked_tasks · measure_description_complexity · record_unblock_report
+  status.ts        # read_task_context · compose_update
+  sanitize.ts      # strip role tokens, wrap untrusted input
+  sse.ts           # server-side SSE writer
+  sse-client.ts    # EventSource consumer (useAgent hook)
+src/lib/db.ts      # SQLite CRUD with schema migrations
+src/app/api/       # REST task CRUD + SSE agent routes
+src/hooks/         # useTasks · useAgent · useCommandKey
+```
+
+## Tradeoffs
+
+SQLite is single-user by design — right for a local dev tool. The agent loop caps at 12 iterations; most runs complete in 3–5. Non-SSE endpoints exist for parity but the UI always uses `/stream`.
+
+## Development approach
+
+Built with an AI coding agent for speed on boilerplate and scaffolding. Architecture decisions, agent design, UX, and bug fixes were done manually. The agent log (`AGENT_LOG.md`) has the full breakdown of what was delegated vs. what required direct intervention.
