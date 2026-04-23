@@ -16,7 +16,7 @@ import type { AgentMode } from "@/hooks/useAgent";
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { tasks, loading, error, fetchTasks, deleteTask } = useTasks();
+  const { tasks, loading, error, fetchTasks, deleteTask, updateTask } = useTasks();
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelMode, setPanelMode] = useState<AgentMode>("prioritize");
@@ -53,6 +53,14 @@ function HomeContent() {
     [tasks, openPanel]
   );
 
+  const handleStatusAction = useCallback(
+    (id: string) => {
+      const task = tasks.find((t) => t.id === id);
+      openPanel("status", task);
+    },
+    [tasks, openPanel]
+  );
+
   const closePanel = useCallback(() => setPanelOpen(false), []);
 
   const handleFilterSubtasks = useCallback(
@@ -74,6 +82,14 @@ function HomeContent() {
     el.classList.add("flash-highlight");
     setTimeout(() => el.classList.remove("flash-highlight"), 1000);
   }, []);
+
+  const handleStatusChange = useCallback(
+    async (id: string, status: import("@/types").Task["status"]) => {
+      await updateTask(id, { status });
+      fetchTasks(new URLSearchParams(searchParams.toString()));
+    },
+    [updateTask, fetchTasks, searchParams]
+  );
 
   const handleTasksChanged = useCallback(() => {
     fetchTasks(new URLSearchParams(searchParams.toString()));
@@ -158,9 +174,11 @@ function HomeContent() {
             onDelete={handleDelete}
             onEdit={handleEdit}
             onAiAction={handleAiAction}
+            onStatusAction={handleStatusAction}
             onRetry={() => fetchTasks(new URLSearchParams(searchParams.toString()))}
             onJumpToParent={handleJumpToParent}
             onFilterSubtasks={handleFilterSubtasks}
+            onStatusChange={handleStatusChange}
           />
         ) : (
           <TaskList
@@ -170,9 +188,11 @@ function HomeContent() {
             onDelete={handleDelete}
             onEdit={handleEdit}
             onAiAction={handleAiAction}
+            onStatusAction={handleStatusAction}
             onRetry={() => fetchTasks(new URLSearchParams(searchParams.toString()))}
             onJumpToParent={handleJumpToParent}
             onFilterSubtasks={handleFilterSubtasks}
+            onStatusChange={handleStatusChange}
           />
         )}
       </main>

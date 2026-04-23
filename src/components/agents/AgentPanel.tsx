@@ -8,6 +8,7 @@ import {
   GitBranch,
   Zap,
   ArrowUpDown,
+  Radio,
   ChevronDown,
   ChevronRight,
   RefreshCw,
@@ -29,6 +30,7 @@ import { labelFor } from "./toolLabels";
 import { PrioritizeSection } from "./PrioritizeSection";
 import { DecomposeSection } from "./DecomposeSection";
 import { UnblockSection } from "./UnblockSection";
+import { StatusSection } from "./StatusSection";
 import { ToolCallTimeline } from "./ToolCallTimeline";
 
 export interface AgentPanelProps {
@@ -62,6 +64,12 @@ const MODE_META: Record<
     desc: "Agent finds stuck work and suggests concrete next steps.",
     cta: "Scan for blockers",
     icon: Zap,
+  },
+  status: {
+    title: "Status update",
+    desc: "Agent writes a Slack-style async update based on this task and its subtasks.",
+    cta: "Generate update",
+    icon: Radio,
   },
 };
 
@@ -120,7 +128,7 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
   }, [open, reset]);
 
   const meta = MODE_META[mode];
-  const canDecompose = mode !== "decompose" || !!task;
+  const canDecompose = (mode !== "decompose" && mode !== "status") || !!task;
 
   const handleRun = () => void runAgent(mode, { taskId: task?.id });
 
@@ -232,7 +240,7 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
 
           {!canDecompose && (
             <p className="text-xs text-amber-400">
-              Decompose requires a task. Open this panel from a task card.
+              {mode === "status" ? "Status update" : "Decompose"} requires a task. Open this panel from a task card.
             </p>
           )}
 
@@ -321,6 +329,7 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
                 />
               )}
               {result.type === "unblock" && <UnblockSection result={result} />}
+              {result.type === "status" && <StatusSection result={result} />}
 
               {result.toolCallLog && result.toolCallLog.length > 0 && (
                 <div

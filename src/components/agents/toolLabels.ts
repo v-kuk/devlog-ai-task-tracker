@@ -20,6 +20,9 @@ export const TOOL_LABELS: Record<string, ToolLabel> = {
   identify_blocked_tasks:      { label: "Finding stuck tasks",          summary: () => "" },
   measure_description_complexity: { label: "Assessing complexity",      summary: (i) => String(i.taskId ?? "") },
   record_unblock_report:       { label: "Drafting action plan",         summary: (i) => String(i.taskId ?? "") },
+  // status agent
+  read_task_context:           { label: "Reading task context",         summary: (i) => String(i.taskId ?? "") },
+  compose_update:              { label: "Composing status update",      summary: (i) => String(i.tone ?? "") },
 };
 
 export function labelFor(tool: string, input: unknown): { label: string; summary: string } {

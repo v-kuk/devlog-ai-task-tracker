@@ -111,7 +111,14 @@ export interface UnblockResult extends AgentResultBase {
   blockedTasks: BlockedTaskReport[];
 }
 
-export type AgentResult = PrioritizeResult | DecomposeResult | UnblockResult;
+export interface StatusResult extends AgentResultBase {
+  type: "status";
+  message: string;
+  tone: string;
+  taskTitle?: string;
+}
+
+export type AgentResult = PrioritizeResult | DecomposeResult | UnblockResult | StatusResult;
 
 // ─── API Response Helpers ─────────────────────────────────────────────────────
 

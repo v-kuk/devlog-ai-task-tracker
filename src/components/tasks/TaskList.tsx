@@ -12,9 +12,11 @@ interface TaskListProps {
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
   onAiAction?: (id: string) => void;
+  onStatusAction?: (id: string) => void;
   onRetry?: () => void;
   onJumpToParent?: (id: string) => void;
   onFilterSubtasks?: (id: string) => void;
+  onStatusChange?: (id: string, status: import("@/types").Task["status"]) => void;
 }
 
 function SkeletonCard() {
@@ -36,7 +38,7 @@ function SkeletonCard() {
   );
 }
 
-export function TaskList({ tasks, loading, error, onDelete, onEdit, onAiAction, onRetry, onJumpToParent, onFilterSubtasks }: TaskListProps) {
+export function TaskList({ tasks, loading, error, onDelete, onEdit, onAiAction, onStatusAction, onRetry, onJumpToParent, onFilterSubtasks, onStatusChange }: TaskListProps) {
   const router = useRouter();
 
   if (loading) {
@@ -106,8 +108,10 @@ export function TaskList({ tasks, loading, error, onDelete, onEdit, onAiAction, 
           onDelete={onDelete}
           onEdit={onEdit}
           onAiAction={onAiAction}
+          onStatusAction={onStatusAction}
           onJumpToParent={onJumpToParent}
           onFilterSubtasks={onFilterSubtasks}
+          onStatusChange={onStatusChange}
         />
       ))}
     </div>

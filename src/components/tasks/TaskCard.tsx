@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
-import { Pencil, Trash2, Sparkles, Clock, ClipboardCopy, Check } from "lucide-react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import { Pencil, Trash2, Sparkles, Radio, Clock, ClipboardCopy, Check, ChevronDown } from "lucide-react";
 import type { Task } from "@/types";
 import type { TaskWithMeta } from "@/lib/db";
 import { displayId } from "@/lib/utils";
@@ -12,14 +12,16 @@ interface TaskCardProps {
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
   onAiAction?: (id: string) => void;
+  onStatusAction?: (id: string) => void;
   onJumpToParent?: (id: string) => void;
   onFilterSubtasks?: (id: string) => void;
+  onStatusChange?: (id: string, status: Task["status"]) => void;
 }
 
-const STATUS_STYLES: Record<Task["status"], { label: string; className: string }> = {
-  todo:        { label: "TODO",        className: "bg-zinc-800 text-zinc-300 border-zinc-600" },
-  "in-progress": { label: "IN PROGRESS", className: "bg-blue-950 text-blue-300 border-blue-700" },
-  done:        { label: "DONE",        className: "bg-emerald-950 text-emerald-300 border-emerald-700" },
+const STATUS_STYLES: Record<Task["status"], { label: string; className: string; dot: string }> = {
+  todo:          { label: "TODO",        className: "bg-zinc-800 text-zinc-300 border-zinc-600",     dot: "bg-zinc-400" },
+  "in-progress": { label: "IN PROGRESS", className: "bg-blue-950 text-blue-300 border-blue-700",     dot: "bg-blue-400" },
+  done:          { label: "DONE",        className: "bg-emerald-950 text-emerald-300 border-emerald-700", dot: "bg-emerald-400" },
 };
 
 const PRIORITY_STYLES: Record<Task["priority"], { label: string; className: string; dot: string }> = {
@@ -52,11 +54,24 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent, onFilterSubtasks }: TaskCardProps) {
+export function TaskCard({ task, onDelete, onEdit, onAiAction, onStatusAction, onJumpToParent, onFilterSubtasks, onStatusChange }: TaskCardProps) {
   const parentTitle = "parentTitle" in task ? task.parentTitle : null;
   const subtaskCount = "subtaskCount" in task ? task.subtaskCount : 0;
   const [confirming, setConfirming] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
+  const statusRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!statusOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (statusRef.current && !statusRef.current.contains(e.target as Node)) {
+        setStatusOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [statusOpen]);
 
   const handleCopyPrompt = async () => {
     const prompt = buildTaskPrompt({
@@ -100,11 +115,35 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent, o
         {/* Top row: badges + actions */}
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className={`mono text-[10px] font-600 tracking-widest px-2 py-0.5 rounded-sm border ${status.className}`}
-            >
-              {status.label}
-            </span>
+            <div ref={statusRef} className="relative">
+              <button
+                onClick={() => onStatusChange && setStatusOpen((o) => !o)}
+                className={`mono text-[10px] font-600 tracking-widest px-2 py-0.5 rounded-sm border flex items-center gap-1 transition-colors ${status.className} ${onStatusChange ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
+              >
+                {status.label}
+                {onStatusChange && <ChevronDown size={9} className="opacity-60" />}
+              </button>
+              {statusOpen && (
+                <div
+                  className="absolute top-full left-0 mt-1 z-50 rounded-sm border overflow-hidden"
+                  style={{ background: "var(--surface)", borderColor: "var(--border)", minWidth: "8rem" }}
+                >
+                  {(Object.entries(STATUS_STYLES) as [Task["status"], typeof STATUS_STYLES[Task["status"]]][]).map(([s, style]) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        onStatusChange?.(task.id, s);
+                        setStatusOpen(false);
+                      }}
+                      className={`w-full text-left mono text-[10px] font-600 tracking-widest px-3 py-1.5 flex items-center gap-2 hover:bg-[var(--surface-2)] transition-colors ${s === task.status ? "opacity-50 cursor-default" : ""}`}
+                    >
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                      {style.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <span className={`mono text-[10px] font-600 tracking-widest flex items-center gap-1 ${priority.className}`}>
               <span className={`inline-block w-1.5 h-1.5 rounded-full ${priority.dot}`} />
               {priority.label}
@@ -135,15 +174,26 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent, o
                 <Trash2 size={13} />
               </button>
             </Tip>
-            <Tip label="AI Actions">
+            <Tip label="Decompose task">
               <button
                 onClick={() => (onAiAction ?? onEdit)(task.id)}
                 className="p-1.5 rounded-sm text-[var(--muted)] hover:text-amber-400 hover:bg-[var(--surface-2)] transition-colors"
-                aria-label="AI Actions"
+                aria-label="Decompose task"
               >
                 <Sparkles size={13} />
               </button>
             </Tip>
+            {onStatusAction && (
+              <Tip label="Status update">
+                <button
+                  onClick={() => onStatusAction(task.id)}
+                  className="p-1.5 rounded-sm text-[var(--muted)] hover:text-amber-400 hover:bg-[var(--surface-2)] transition-colors"
+                  aria-label="Generate status update"
+                >
+                  <Radio size={13} />
+                </button>
+              </Tip>
+            )}
             <Tip label={copied ? "Copied!" : "Copy task prompt"}>
               <button
                 onClick={handleCopyPrompt}

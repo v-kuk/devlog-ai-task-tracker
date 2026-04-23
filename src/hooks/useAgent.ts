@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import type { AgentResult, ToolCallLog } from "@/types";
 import { consumeSse } from "@/lib/agents/sse-client";
 
-export type AgentMode = "prioritize" | "decompose" | "unblock";
+export type AgentMode = "prioritize" | "decompose" | "unblock" | "status";
 
 export interface RunAgentParams {
   taskId?: string;

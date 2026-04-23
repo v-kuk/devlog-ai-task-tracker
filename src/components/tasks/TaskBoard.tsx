@@ -12,9 +12,11 @@ interface TaskBoardProps {
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
   onAiAction?: (id: string) => void;
+  onStatusAction?: (id: string) => void;
   onRetry?: () => void;
   onJumpToParent?: (id: string) => void;
   onFilterSubtasks?: (id: string) => void;
+  onStatusChange?: (id: string, status: import("@/types").Task["status"]) => void;
 }
 
 const COLUMNS = [
@@ -48,9 +50,11 @@ export function TaskBoard({
   onDelete,
   onEdit,
   onAiAction,
+  onStatusAction,
   onRetry,
   onJumpToParent,
   onFilterSubtasks,
+  onStatusChange,
 }: TaskBoardProps) {
   const router = useRouter();
 
@@ -127,8 +131,10 @@ export function TaskBoard({
                     onDelete={onDelete}
                     onEdit={onEdit}
                     onAiAction={onAiAction}
+                    onStatusAction={onStatusAction}
                     onJumpToParent={onJumpToParent}
                     onFilterSubtasks={onFilterSubtasks}
+                    onStatusChange={onStatusChange}
                   />
                 ))
               )}
