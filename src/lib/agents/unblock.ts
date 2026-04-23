@@ -1,5 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { AgentResult, Task, BlockedTaskReport, ToolCallLog } from "@/types";
+import type {
+  AgentResult,
+  Task,
+  BlockedTaskReport,
+  ToolCallLog,
+} from "@/types";
 import { getAllTasks } from "@/lib/db";
 import { runAgentLoop, getAnthropicClient, AGENT_MODEL } from "./loop";
 import { stripRoleTokens, wrapUntrusted } from "./sanitize";
@@ -81,7 +86,10 @@ function makeExecutor(tasks: Task[], state: UnblockState) {
       const minDays = Number(args.minDaysStuck ?? 3);
       const blocked = tasks
         .filter((t) => t.status === "in-progress")
-        .map((t) => ({ task: t, daysStuck: daysBetween(t.updatedAt, now) }))
+        .map((t) => ({
+          task: t,
+          daysStuck: daysBetween(new Date(t.updatedAt).getTime(), now),
+        }))
         .filter((b) => b.daysStuck >= minDays);
       for (const b of blocked) {
         if (!state.reports.has(b.task.id)) {
@@ -107,24 +115,32 @@ function makeExecutor(tasks: Task[], state: UnblockState) {
       const desc = String(args.description ?? byId.get(id)?.description ?? "");
       const charCount = desc.length;
       const conjunctionCount = (desc.match(/\b(and|or)\b/gi) || []).length;
-      const sentenceCount = desc.split(/[.!?]+/).filter((s) => s.trim().length > 0).length;
+      const sentenceCount = desc
+        .split(/[.!?]+/)
+        .filter((s) => s.trim().length > 0).length;
       return { taskId: id, charCount, conjunctionCount, sentenceCount };
     }
 
     if (name === "record_unblock_report") {
       const id = String(args.taskId);
       const questions = Array.isArray(args.questions)
-        ? (args.questions as unknown[]).map(String).filter((q) => q.trim().length > 0).slice(0, 6)
+        ? (args.questions as unknown[])
+            .map(String)
+            .filter((q) => q.trim().length > 0)
+            .slice(0, 6)
         : [];
       const nextActions = Array.isArray(args.nextActions)
-        ? (args.nextActions as unknown[]).map(String).filter((a) => a.trim().length > 0).slice(0, 6)
+        ? (args.nextActions as unknown[])
+            .map(String)
+            .filter((a) => a.trim().length > 0)
+            .slice(0, 6)
         : [];
       const t = byId.get(id);
       if (!t) return { error: `Task ${id} not found` };
 
       state.reports.set(id, {
         task: t,
-        daysStuck: daysBetween(t.updatedAt, now),
+        daysStuck: daysBetween(new Date(t.updatedAt).getTime(), now),
         questions,
         nextActions,
       });
@@ -141,9 +157,13 @@ export interface UnblockOpts {
   onToolCall?: (entry: ToolCallLog) => void;
 }
 
-export async function runUnblockingAgent(opts: UnblockOpts = {}): Promise<AgentResult> {
+export async function runUnblockingAgent(
+  opts: UnblockOpts = {}
+): Promise<AgentResult> {
   const client = getAnthropicClient();
   const taskList = opts.tasks ?? getAllTasks({ status: "in-progress" });
+
+  console.log(taskList);
 
   if (!client) {
     return {
@@ -169,6 +189,8 @@ export async function runUnblockingAgent(opts: UnblockOpts = {}): Promise<AgentR
     updatedAt: new Date(t.updatedAt).toISOString(),
   }));
 
+  console.log(summary);
+
   const { text, toolCallLog } = await runAgentLoop({
     client,
     model: AGENT_MODEL,
@@ -178,7 +200,9 @@ export async function runUnblockingAgent(opts: UnblockOpts = {}): Promise<AgentR
     initialMessages: [
       {
         role: "user",
-        content: `In-progress tasks:\n${wrapUntrusted(JSON.stringify(summary, null, 2))}\n\nUnblock them.`,
+        content: `In-progress tasks:\n${wrapUntrusted(
+          JSON.stringify(summary, null, 2)
+        )}\n\nUnblock them.`,
       },
     ],
     executeTool: makeExecutor(taskList, state),
