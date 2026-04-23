@@ -4,6 +4,7 @@ import { useEffect, useCallback, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Cpu, Zap, ArrowUpDown } from "lucide-react";
 import { TaskList } from "@/components/tasks/TaskList";
+import { TaskBoard } from "@/components/tasks/TaskBoard";
 import { TaskFilters } from "@/components/tasks/TaskFilters";
 import { AgentPanel } from "@/components/agents/AgentPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -78,6 +79,8 @@ function HomeContent() {
     fetchTasks(new URLSearchParams(searchParams.toString()));
   }, [fetchTasks, searchParams]);
 
+  const isBoard = searchParams.get("view") === "board";
+
   useCommandKey("k", () => router.push("/tasks/new"));
 
   return (
@@ -86,7 +89,7 @@ function HomeContent() {
         className="sticky top-0 z-40 border-b"
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
       >
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Cpu size={18} className="text-amber-400 shrink-0" />
             <span className="font-semibold tracking-tight text-[var(--foreground)]">DevLog</span>
@@ -122,22 +125,39 @@ function HomeContent() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main
+        className="mx-auto px-4 sm:px-6 py-6 sm:py-8 transition-all"
+        style={{ maxWidth: isBoard ? "var(--board-max-w, 1280px)" : "48rem" }}
+      >
         <div className="mb-6">
           <TaskFilters />
         </div>
 
-        <TaskList
-          tasks={tasks}
-          loading={loading}
-          error={error}
-          onDelete={handleDelete}
-          onEdit={handleEdit}
-          onAiAction={handleAiAction}
-          onRetry={() => fetchTasks(new URLSearchParams(searchParams.toString()))}
-          onJumpToParent={handleJumpToParent}
-          onFilterSubtasks={handleFilterSubtasks}
-        />
+        {isBoard ? (
+          <TaskBoard
+            tasks={tasks}
+            loading={loading}
+            error={error}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
+            onAiAction={handleAiAction}
+            onRetry={() => fetchTasks(new URLSearchParams(searchParams.toString()))}
+            onJumpToParent={handleJumpToParent}
+            onFilterSubtasks={handleFilterSubtasks}
+          />
+        ) : (
+          <TaskList
+            tasks={tasks}
+            loading={loading}
+            error={error}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
+            onAiAction={handleAiAction}
+            onRetry={() => fetchTasks(new URLSearchParams(searchParams.toString()))}
+            onJumpToParent={handleJumpToParent}
+            onFilterSubtasks={handleFilterSubtasks}
+          />
+        )}
       </main>
 
       <button

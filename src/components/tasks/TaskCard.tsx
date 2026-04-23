@@ -142,9 +142,9 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent, o
         {task.parentTaskId && parentTitle && (
           <button
             onClick={() => onJumpToParent?.(task.parentTaskId!)}
-            className="flex items-center gap-1 text-[10px] mono text-[var(--muted)] hover:text-amber-400 mb-1"
+            className="flex items-center gap-1 text-[10px] mono text-[var(--muted)] hover:text-amber-400 mb-1 min-w-0 w-full"
           >
-            ↳ Subtask of <span className="truncate max-w-[200px] ml-1">{parentTitle}</span>
+            <span className="shrink-0">↳ Subtask of</span><span className="truncate min-w-0 ml-1">{parentTitle}</span>
           </button>
         )}
 

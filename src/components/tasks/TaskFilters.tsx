@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
-import { X, SlidersHorizontal, ArrowUp, ArrowDown } from "lucide-react";
+import { X, SlidersHorizontal, ArrowUp, ArrowDown, List, LayoutGrid } from "lucide-react";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -54,6 +54,7 @@ export function TaskFilters() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const view = searchParams.get("view") ?? "list";
   const status = searchParams.get("status") ?? "";
   const sortBy = searchParams.get("sortBy") ?? "priority";
   const sortOrderParam = searchParams.get("sortOrder");
@@ -107,12 +108,55 @@ export function TaskFilters() {
   }, [router, searchParams]);
 
   const clearFilters = useCallback(() => {
-    router.push("/");
-  }, [router]);
+    const params = new URLSearchParams();
+    if (view === "board") params.set("view", "board");
+    router.push(params.toString() ? `/?${params.toString()}` : "/");
+  }, [router, view]);
+
+  const setView = useCallback(
+    (v: "list" | "board") => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (v === "list") {
+        params.delete("view");
+      } else {
+        params.set("view", v);
+      }
+      router.push(`/?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <SlidersHorizontal size={14} className="text-[var(--muted)]" />
+
+      <div
+        className="flex items-center rounded-sm border overflow-hidden"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <button
+          onClick={() => setView("list")}
+          title="List view"
+          className="flex items-center justify-center h-8 w-8 transition-colors"
+          style={{
+            background: view === "list" ? "var(--surface-2)" : "transparent",
+            color: view === "list" ? "var(--foreground)" : "var(--muted)",
+          }}
+        >
+          <List size={12} />
+        </button>
+        <button
+          onClick={() => setView("board")}
+          title="Board view"
+          className="flex items-center justify-center h-8 w-8 transition-colors"
+          style={{
+            background: view === "board" ? "var(--surface-2)" : "transparent",
+            color: view === "board" ? "var(--foreground)" : "var(--muted)",
+          }}
+        >
+          <LayoutGrid size={12} />
+        </button>
+      </div>
 
       <FilterSelect
         value={status}
