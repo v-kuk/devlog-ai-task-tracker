@@ -18,7 +18,7 @@ export default function NewTaskPage() {
       setIsLoading(true);
       try {
         await createTask(data);
-        router.push("/");
+        router.back();
       } finally {
         setIsLoading(false);
       }
@@ -31,7 +31,7 @@ export default function NewTaskPage() {
       <div className="max-w-2xl mx-auto px-6 py-10">
         {/* Back nav */}
         <button
-          onClick={() => router.push("/")}
+          onClick={() => router.back()}
           className="flex items-center gap-2 text-sm mb-8 transition-colors hover:text-[var(--foreground)]"
           style={{ color: "var(--muted)" }}
         >
@@ -54,7 +54,7 @@ export default function NewTaskPage() {
         >
           <TaskForm
             onSubmit={handleSubmit}
-            onCancel={() => router.push("/")}
+            onCancel={() => router.back()}
             isLoading={isLoading}
           />
         </div>
