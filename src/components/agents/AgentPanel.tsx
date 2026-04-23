@@ -11,6 +11,8 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
+  History,
+  X,
 } from "lucide-react";
 import {
   Sheet,
@@ -21,6 +23,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useAgent, type AgentMode } from "@/hooks/useAgent";
+import { useAgentHistory } from "@/hooks/useAgentHistory";
 import type { Task } from "@/types";
 import { labelFor } from "./toolLabels";
 import { PrioritizeSection } from "./PrioritizeSection";
@@ -71,12 +74,17 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
     runAgent,
     submitClarification,
     reset,
+    loadResult,
     streamingToolCalls,
   } = useAgent();
 
+  const { history, saveRun } = useAgentHistory();
+
   const [clarificationAnswer, setClarificationAnswer] = useState("");
   const [showReasoning, setShowReasoning] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const notifiedRef = useRef<typeof result | null>(null);
+  const savedRef = useRef<typeof result | null>(null);
 
   useEffect(() => {
     if (
@@ -90,12 +98,24 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
     }
   }, [result, onTasksChanged]);
 
+  // Save completed (non-clarification) runs to history
+  useEffect(() => {
+    if (!result || savedRef.current === result) return;
+    const isClarificationStep = result.type === "decompose" && result.needsClarification;
+    if (!isClarificationStep) {
+      savedRef.current = result;
+      saveRun(mode, result, task?.title);
+    }
+  }, [result, mode, task?.title, saveRun]);
+
   useEffect(() => {
     if (!open) {
       reset();
       setClarificationAnswer("");
       setShowReasoning(false);
+      setShowHistory(false);
       notifiedRef.current = null;
+      savedRef.current = null;
     }
   }, [open, reset]);
 
@@ -132,6 +152,16 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
           <SheetTitle className="flex items-center gap-2 text-[var(--foreground)]">
             <meta.icon size={16} className="text-amber-400" />
             {meta.title}
+            {history.length > 0 && (
+              <button
+                onClick={() => setShowHistory((s) => !s)}
+                className="ml-auto flex items-center gap-1 text-xs mono text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                title="Run history"
+              >
+                <History size={13} />
+                {history.length}
+              </button>
+            )}
           </SheetTitle>
           <SheetDescription className="text-[var(--muted)]">
             {meta.desc}
@@ -140,6 +170,48 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
             )}
           </SheetDescription>
         </SheetHeader>
+
+        {showHistory && (
+          <div
+            className="mt-4 rounded-sm border overflow-hidden"
+            style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
+              <span className="text-xs mono text-[var(--muted)]">Run history</span>
+              <button onClick={() => setShowHistory(false)} className="text-[var(--muted)] hover:text-[var(--foreground)]">
+                <X size={12} />
+              </button>
+            </div>
+            <ul className="divide-y max-h-64 overflow-y-auto" style={{ borderColor: "var(--border)" }}>
+              {history.map((rec) => {
+                const RecIcon = MODE_META[rec.mode].icon;
+                const date = new Date(rec.timestamp);
+                const label = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+                return (
+                  <li key={rec.id}>
+                    <button
+                      className="w-full text-left px-3 py-2 text-xs mono hover:bg-[var(--surface)] transition-colors flex items-start gap-2"
+                      onClick={() => {
+                        loadResult(rec.result, rec.toolCallLog);
+                        setShowHistory(false);
+                        setShowReasoning(false);
+                      }}
+                    >
+                      <RecIcon size={12} className="text-amber-400 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[var(--foreground)]">{MODE_META[rec.mode].title}</div>
+                        {rec.taskTitle && (
+                          <div className="text-[10px] text-[var(--muted)] truncate">{rec.taskTitle}</div>
+                        )}
+                        <div className="text-[10px] text-[var(--muted)]">{label}</div>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         <div className="mt-6 space-y-4">
           {!result && !awaitingClarification && (

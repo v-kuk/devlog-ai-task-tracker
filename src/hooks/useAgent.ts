@@ -22,6 +22,8 @@ export interface UseAgentReturn {
   runAgent: (mode: AgentMode, params?: RunAgentParams) => Promise<void>;
   submitClarification: (mode: AgentMode, answer: string, taskId?: string) => Promise<void>;
   reset: () => void;
+  /** Restore a previously saved run into the current state. */
+  loadResult: (result: AgentResult, toolCalls: ToolCallLog[]) => void;
 }
 
 function streamEndpoint(mode: AgentMode): string {
@@ -107,6 +109,14 @@ export function useAgent(): UseAgentReturn {
     setStreamingToolCalls([]);
   }, []);
 
+  const loadResult = useCallback((r: AgentResult, toolCalls: ToolCallLog[]) => {
+    abortRef.current?.abort();
+    setLoading(false);
+    setError(null);
+    setStreamingToolCalls(toolCalls);
+    setResult(r);
+  }, []);
+
   const awaitingClarification =
     result?.type === "decompose" && result.needsClarification === true;
   const question =
@@ -124,5 +134,6 @@ export function useAgent(): UseAgentReturn {
     runAgent,
     submitClarification,
     reset,
+    loadResult,
   };
 }
