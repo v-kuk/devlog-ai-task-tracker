@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { AgentResult } from "@/types";
 import {
   Loader2,
   AlertCircle,
@@ -25,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAgent, type AgentMode } from "@/hooks/useAgent";
 import { useAgentHistory } from "@/hooks/useAgentHistory";
+import { useStatusJob } from "@/hooks/useStatusJob";
 import type { Task } from "@/types";
 import { labelFor } from "./toolLabels";
 import { PrioritizeSection } from "./PrioritizeSection";
@@ -75,18 +77,34 @@ const MODE_META: Record<
 
 export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksChanged }: AgentPanelProps) {
   const {
-    result,
-    loading,
-    error,
+    result: agentResult,
+    loading: agentLoading,
+    error: agentError,
     awaitingClarification,
     runAgent,
     submitClarification,
-    reset,
+    reset: agentReset,
     loadResult,
-    streamingToolCalls,
+    streamingToolCalls: agentStreamingToolCalls,
   } = useAgent();
 
   const { history, saveRun } = useAgentHistory();
+
+  const isStatus = mode === "status";
+
+  const taskTitleRef = useRef(task?.title);
+  taskTitleRef.current = task?.title;
+
+  const onStatusDone = useCallback((r: AgentResult) => {
+    saveRun("status", r, taskTitleRef.current);
+  }, [saveRun]);
+
+  const statusJob = useStatusJob(task?.id, onStatusDone);
+
+  const result = isStatus ? statusJob.result : agentResult;
+  const loading = isStatus ? statusJob.loading : agentLoading;
+  const error = isStatus ? statusJob.error : agentError;
+  const streamingToolCalls = isStatus ? statusJob.streamingToolCalls : agentStreamingToolCalls;
 
   const [clarificationAnswer, setClarificationAnswer] = useState("");
   const [showReasoning, setShowReasoning] = useState(false);
@@ -110,27 +128,31 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
   useEffect(() => {
     if (!result || savedRef.current === result) return;
     const isClarificationStep = result.type === "decompose" && result.needsClarification;
-    if (!isClarificationStep) {
+    // Status results are saved by useStatusJob to avoid duplicate entries on panel reopen
+    if (!isClarificationStep && !isStatus) {
       savedRef.current = result;
       saveRun(mode, result, task?.title);
     }
-  }, [result, mode, task?.title, saveRun]);
+  }, [result, mode, task?.title, saveRun, isStatus]);
 
   useEffect(() => {
     if (!open) {
-      reset();
+      agentReset();
       setClarificationAnswer("");
       setShowReasoning(false);
       setShowHistory(false);
       notifiedRef.current = null;
       savedRef.current = null;
     }
-  }, [open, reset]);
+  }, [open, agentReset]);
 
   const meta = MODE_META[mode];
   const canDecompose = (mode !== "decompose" && mode !== "status") || !!task;
 
-  const handleRun = () => void runAgent(mode, { taskId: task?.id });
+  const handleRun = () => {
+    if (isStatus) statusJob.generate();
+    else void runAgent(mode, { taskId: task?.id });
+  };
 
   const handleSubmitClarification = () => {
     if (!clarificationAnswer.trim()) return;
