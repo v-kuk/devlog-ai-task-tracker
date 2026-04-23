@@ -3,7 +3,7 @@ import { getAllTasksWithMeta, createTask } from "@/lib/db";
 import { CreateTaskInputSchema } from "@/types";
 import type { GetAllTasksFilters } from "@/lib/db";
 
-// GET /api/tasks?status=todo&sortBy=priority
+// GET /api/tasks?status=todo&sortBy=priority&sortOrder=asc
 export function GET(req: NextRequest): NextResponse {
   try {
     const { searchParams } = req.nextUrl;
@@ -12,8 +12,11 @@ export function GET(req: NextRequest): NextResponse {
     const sortByRaw = searchParams.get("sortBy");
     const sortBy: GetAllTasksFilters["sortBy"] =
       sortByRaw === "priority" || sortByRaw === "createdAt" ? sortByRaw : undefined;
+    const sortOrderRaw = searchParams.get("sortOrder");
+    const sortOrder: GetAllTasksFilters["sortOrder"] =
+      sortOrderRaw === "asc" || sortOrderRaw === "desc" ? sortOrderRaw : undefined;
 
-    const tasks = getAllTasksWithMeta({ status, sortBy });
+    const tasks = getAllTasksWithMeta({ status, sortBy, sortOrder });
     return NextResponse.json({ tasks });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";

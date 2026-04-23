@@ -91,6 +91,7 @@ interface DbRow {
 export interface GetAllTasksFilters {
   status?: string;
   sortBy?: "priority" | "createdAt";
+  sortOrder?: "asc" | "desc";
 }
 
 export interface TaskWithMeta extends Task {
@@ -115,13 +116,17 @@ const stmts = {
 
 // ─── Sort clause helper ───────────────────────────────────────────────────────
 
-const PRIORITY_SORT = `CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END ASC`;
-const CREATED_SORT  = `created_at DESC`;
+const PRIORITY_CASE       = `CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END`;
+const PRIORITY_CASE_ALIAS = `CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END`;
 
-function orderClause(sortBy?: "priority" | "createdAt"): string {
-  return sortBy === "createdAt"
-    ? CREATED_SORT
-    : `${PRIORITY_SORT}, ${CREATED_SORT}`;
+function orderClause(sortBy?: "priority" | "createdAt", sortOrder?: "asc" | "desc", alias = false): string {
+  if (sortBy === "createdAt") {
+    const dir = (sortOrder ?? "desc").toUpperCase();
+    return `created_at ${dir}`;
+  }
+  const caseExpr = alias ? PRIORITY_CASE_ALIAS : PRIORITY_CASE;
+  const dir = (sortOrder ?? "asc").toUpperCase();
+  return `${caseExpr} ${dir}, created_at DESC`;
 }
 
 // ─── Row → Task Mapper ────────────────────────────────────────────────────────
@@ -143,7 +148,7 @@ function rowToTask(row: DbRow): Task {
 // ─── Exported Functions ───────────────────────────────────────────────────────
 
 export function getAllTasks(filters?: GetAllTasksFilters): Task[] {
-  const order = orderClause(filters?.sortBy);
+  const order = orderClause(filters?.sortBy, filters?.sortOrder);
 
   if (filters?.status) {
     return db
@@ -172,7 +177,7 @@ function rowToTaskWithMeta(row: DbRowWithMeta): TaskWithMeta {
 }
 
 export function getAllTasksWithMeta(filters?: GetAllTasksFilters): TaskWithMeta[] {
-  const order = orderClause(filters?.sortBy);
+  const order = orderClause(filters?.sortBy, filters?.sortOrder, true);
 
   if (filters?.status) {
     return db

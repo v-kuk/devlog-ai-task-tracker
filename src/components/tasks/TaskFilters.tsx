@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
-import { X, SlidersHorizontal } from "lucide-react";
+import { X, SlidersHorizontal, ArrowUp, ArrowDown } from "lucide-react";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -51,14 +51,21 @@ export function TaskFilters() {
 
   const status = searchParams.get("status") ?? "";
   const sortBy = searchParams.get("sortBy") ?? "priority";
+  const sortOrderParam = searchParams.get("sortOrder");
 
-  const hasActiveFilters = status !== "" || sortBy !== "priority";
+  const naturalDefault = sortBy === "createdAt" ? "desc" : "asc";
+  const effectiveOrder = (sortOrderParam === "asc" || sortOrderParam === "desc")
+    ? sortOrderParam
+    : naturalDefault;
+
+  const hasActiveFilters = status !== "" || sortBy !== "priority" || sortOrderParam !== null;
 
   const update = useCallback(
     (key: string, value: string) => {
       const params = new URLSearchParams(searchParams.toString());
       if (value === "" || (key === "sortBy" && value === "priority")) {
         params.delete(key);
+        if (key === "sortBy") params.delete("sortOrder");
       } else {
         params.set(key, value);
       }
@@ -66,6 +73,18 @@ export function TaskFilters() {
     },
     [router, searchParams]
   );
+
+  const toggleOrder = useCallback(() => {
+    const next = effectiveOrder === "asc" ? "desc" : "asc";
+    const nextNatural = sortBy === "createdAt" ? "desc" : "asc";
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === nextNatural) {
+      params.delete("sortOrder");
+    } else {
+      params.set("sortOrder", next);
+    }
+    router.push(`/?${params.toString()}`);
+  }, [effectiveOrder, sortBy, router, searchParams]);
 
   const clearFilters = useCallback(() => {
     router.push("/");
@@ -86,6 +105,15 @@ export function TaskFilters() {
         onChange={(v) => update("sortBy", v)}
         options={SORT_OPTIONS}
       />
+
+      <button
+        onClick={toggleOrder}
+        title={effectiveOrder === "asc" ? "Ascending" : "Descending"}
+        className="flex items-center justify-center h-8 w-8 rounded-sm border transition-colors hover:border-[var(--border-hover)] hover:text-[var(--foreground)]"
+        style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--surface-2)" }}
+      >
+        {effectiveOrder === "asc" ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+      </button>
 
       {hasActiveFilters && (
         <button
