@@ -16,7 +16,12 @@ export function GET(req: NextRequest): NextResponse {
     const sortOrder: GetAllTasksFilters["sortOrder"] =
       sortOrderRaw === "asc" || sortOrderRaw === "desc" ? sortOrderRaw : undefined;
 
-    const tasks = getAllTasksWithMeta({ status, sortBy, sortOrder });
+    const taskTypeRaw = searchParams.get("taskType");
+    const taskType: GetAllTasksFilters["taskType"] =
+      taskTypeRaw === "parents" || taskTypeRaw === "subtasks" ? taskTypeRaw : undefined;
+    const parentId = searchParams.get("parentId") ?? undefined;
+
+    const tasks = getAllTasksWithMeta({ status, sortBy, sortOrder, taskType, parentId });
     return NextResponse.json({ tasks });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";

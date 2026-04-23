@@ -54,6 +54,18 @@ function HomeContent() {
 
   const closePanel = useCallback(() => setPanelOpen(false), []);
 
+  const handleFilterSubtasks = useCallback(
+    (taskId: string) => {
+      const task = tasks.find((t) => t.id === taskId);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("parentId", taskId);
+      if (task) params.set("parentTitle", task.title);
+      params.delete("taskType");
+      router.push(`/?${params.toString()}`);
+    },
+    [tasks, router, searchParams]
+  );
+
   const handleJumpToParent = useCallback((parentId: string) => {
     const el = document.querySelector<HTMLElement>(`[data-task-id="${parentId}"]`);
     if (!el) return;
@@ -124,6 +136,7 @@ function HomeContent() {
           onAiAction={handleAiAction}
           onRetry={() => fetchTasks(new URLSearchParams(searchParams.toString()))}
           onJumpToParent={handleJumpToParent}
+          onFilterSubtasks={handleFilterSubtasks}
         />
       </main>
 

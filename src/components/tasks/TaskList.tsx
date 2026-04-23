@@ -14,6 +14,7 @@ interface TaskListProps {
   onAiAction?: (id: string) => void;
   onRetry?: () => void;
   onJumpToParent?: (id: string) => void;
+  onFilterSubtasks?: (id: string) => void;
 }
 
 function SkeletonCard() {
@@ -35,7 +36,7 @@ function SkeletonCard() {
   );
 }
 
-export function TaskList({ tasks, loading, error, onDelete, onEdit, onAiAction, onRetry, onJumpToParent }: TaskListProps) {
+export function TaskList({ tasks, loading, error, onDelete, onEdit, onAiAction, onRetry, onJumpToParent, onFilterSubtasks }: TaskListProps) {
   const router = useRouter();
 
   if (loading) {
@@ -106,6 +107,7 @@ export function TaskList({ tasks, loading, error, onDelete, onEdit, onAiAction, 
           onEdit={onEdit}
           onAiAction={onAiAction}
           onJumpToParent={onJumpToParent}
+          onFilterSubtasks={onFilterSubtasks}
         />
       ))}
     </div>

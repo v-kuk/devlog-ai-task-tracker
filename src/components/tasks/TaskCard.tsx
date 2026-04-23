@@ -13,6 +13,7 @@ interface TaskCardProps {
   onEdit: (id: string) => void;
   onAiAction?: (id: string) => void;
   onJumpToParent?: (id: string) => void;
+  onFilterSubtasks?: (id: string) => void;
 }
 
 const STATUS_STYLES: Record<Task["status"], { label: string; className: string }> = {
@@ -40,7 +41,7 @@ function relativeTime(ts: number): string {
   return `${months}mo ago`;
 }
 
-export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent }: TaskCardProps) {
+export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent, onFilterSubtasks }: TaskCardProps) {
   const parentTitle = "parentTitle" in task ? task.parentTitle : null;
   const subtaskCount = "subtaskCount" in task ? task.subtaskCount : 0;
   const [confirming, setConfirming] = useState(false);
@@ -167,9 +168,14 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent }:
             {relativeTime(task.createdAt)}
           </span>
           {(subtaskCount ?? 0) > 0 && (
-            <span className="mono text-[10px] px-1.5 py-0.5 rounded-sm border" style={{ borderColor: "var(--border)" }}>
+            <button
+              onClick={() => onFilterSubtasks?.(task.id)}
+              className="mono text-[10px] px-1.5 py-0.5 rounded-sm border transition-colors hover:border-amber-500 hover:text-amber-400"
+              style={{ borderColor: "var(--border)" }}
+              title="Show subtasks"
+            >
               {subtaskCount} subtasks
-            </span>
+            </button>
           )}
           {confirming && (
             <span className="ml-auto text-[10px] text-red-400 mono animate-pulse">

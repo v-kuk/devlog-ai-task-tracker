@@ -92,6 +92,8 @@ export interface GetAllTasksFilters {
   status?: string;
   sortBy?: "priority" | "createdAt";
   sortOrder?: "asc" | "desc";
+  taskType?: "all" | "parents" | "subtasks";
+  parentId?: string;
 }
 
 export interface TaskWithMeta extends Task {
@@ -178,33 +180,33 @@ function rowToTaskWithMeta(row: DbRowWithMeta): TaskWithMeta {
 
 export function getAllTasksWithMeta(filters?: GetAllTasksFilters): TaskWithMeta[] {
   const order = orderClause(filters?.sortBy, filters?.sortOrder, true);
+  const conditions: string[] = [];
+  const params: string[] = [];
 
   if (filters?.status) {
-    return db
-      .prepare<[string], DbRowWithMeta>(
-        `SELECT t.*,
-           (SELECT COUNT(*) FROM tasks c WHERE c.parent_task_id = t.id) AS subtask_count,
-           p.title AS parent_title
-         FROM tasks t
-         LEFT JOIN tasks p ON p.id = t.parent_task_id
-         WHERE t.status = ?
-         ORDER BY ${order}`
-      )
-      .all(filters.status)
-      .map(rowToTaskWithMeta);
+    conditions.push("t.status = ?");
+    params.push(filters.status);
+  }
+  if (filters?.parentId) {
+    conditions.push("t.parent_task_id = ?");
+    params.push(filters.parentId);
+  } else if (filters?.taskType === "parents") {
+    conditions.push("t.parent_task_id IS NULL");
+  } else if (filters?.taskType === "subtasks") {
+    conditions.push("t.parent_task_id IS NOT NULL");
   }
 
-  return db
-    .prepare<[], DbRowWithMeta>(
-      `SELECT t.*,
-         (SELECT COUNT(*) FROM tasks c WHERE c.parent_task_id = t.id) AS subtask_count,
-         p.title AS parent_title
-       FROM tasks t
-       LEFT JOIN tasks p ON p.id = t.parent_task_id
-       ORDER BY ${order}`
-    )
-    .all()
-    .map(rowToTaskWithMeta);
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  return (db.prepare(
+    `SELECT t.*,
+       (SELECT COUNT(*) FROM tasks c WHERE c.parent_task_id = t.id) AS subtask_count,
+       p.title AS parent_title
+     FROM tasks t
+     LEFT JOIN tasks p ON p.id = t.parent_task_id
+     ${where}
+     ORDER BY ${order}`
+  ).all(...params) as DbRowWithMeta[]).map(rowToTaskWithMeta);
 }
 
 export function getTaskById(id: string): Task | null {
