@@ -177,6 +177,7 @@ export default function EditTaskPage({ params }: EditPageProps) {
           mode={panelMode}
           task={task}
           onClose={() => setPanelOpen(false)}
+          onJumpToTask={(taskId) => router.push(`/?highlight=${taskId}`)}
         />
       </div>
     </div>

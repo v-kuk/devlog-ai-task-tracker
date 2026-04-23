@@ -79,6 +79,23 @@ function HomeContent() {
     fetchTasks(new URLSearchParams(searchParams.toString()));
   }, [fetchTasks, searchParams]);
 
+  const highlightTask = useCallback((taskId: string) => {
+    const el = document.querySelector<HTMLElement>(`[data-task-id="${taskId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-amber-400");
+    setTimeout(() => el.classList.remove("ring-2", "ring-amber-400"), 1800);
+  }, []);
+
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (!highlightId) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("highlight");
+    router.replace(`/?${params.toString()}`);
+    setTimeout(() => highlightTask(highlightId), 400);
+  }, [searchParams, router, highlightTask]);
+
   const isBoard = searchParams.get("view") === "board";
 
   useCommandKey("k", () => router.push("/tasks/new"));
@@ -175,6 +192,7 @@ function HomeContent() {
           mode={panelMode}
           task={panelTask}
           onClose={closePanel}
+          onJumpToTask={highlightTask}
           onTasksChanged={handleTasksChanged}
         />
       </ErrorBoundary>
