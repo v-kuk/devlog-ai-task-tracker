@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import { nanoid } from "nanoid";
 import type { Task, CreateTaskInput, UpdateTaskInput } from "@/types";
+import { runMigrations } from "./migrations";
 
 // ─── Database Setup ───────────────────────────────────────────────────────────
 
@@ -29,50 +30,7 @@ db.exec(`
 
 // ─── Migrations ───────────────────────────────────────────────────────────────
 
-function columnExists(table: string, column: string): boolean {
-  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-  return rows.some((r) => r.name === column);
-}
-
-if (!columnExists("tasks", "parent_task_id")) {
-  db.exec(`ALTER TABLE tasks ADD COLUMN parent_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL`);
-}
-
-// Backfill parent_task_id from legacy "Parent: <id>\n\n" description prefix
-{
-  const PREFIX_RE = /^Parent:\s+([A-Za-z0-9_-]+)\n\n?/;
-  const rows = db
-    .prepare<[], { id: string; description: string; parent_task_id: string | null }>(
-      `SELECT id, description, parent_task_id FROM tasks WHERE parent_task_id IS NULL AND description LIKE 'Parent: %'`
-    )
-    .all();
-  const update = db.prepare(`UPDATE tasks SET parent_task_id = ?, description = ? WHERE id = ?`);
-  const backfill = db.transaction((items: typeof rows) => {
-    for (const row of items) {
-      const m = row.description.match(PREFIX_RE);
-      if (!m || !m[1]) continue;
-      const parentId: string = m[1];
-      const existsStmt = db.prepare<[string], { id: string }>(`SELECT id FROM tasks WHERE id = ?`);
-      if (!existsStmt.get(parentId)) continue;
-      const stripped = row.description.replace(PREFIX_RE, "");
-      update.run(parentId, stripped, row.id);
-    }
-  });
-  if (rows.length > 0) backfill(rows);
-}
-
-if (!columnExists("tasks", "sequence")) {
-  db.exec(`ALTER TABLE tasks ADD COLUMN sequence INTEGER`);
-  const rows = db.prepare<[], { id: string }>(
-    `SELECT id FROM tasks ORDER BY created_at ASC, id ASC`
-  ).all();
-  const stmt = db.prepare(`UPDATE tasks SET sequence = ? WHERE id = ?`);
-  const tx = db.transaction((items: { id: string }[]) => {
-    items.forEach((r, i) => stmt.run(i + 1, r.id));
-  });
-  if (rows.length > 0) tx(rows);
-  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_sequence ON tasks(sequence)`);
-}
+runMigrations(db);
 
 // ─── Internal Types ───────────────────────────────────────────────────────────
 
