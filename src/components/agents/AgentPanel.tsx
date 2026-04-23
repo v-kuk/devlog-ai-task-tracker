@@ -8,7 +8,6 @@ import {
   GitBranch,
   Zap,
   ArrowUpDown,
-  MessageCircleQuestion,
   ChevronDown,
   ChevronRight,
   RefreshCw,
@@ -21,11 +20,13 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { useAgent, type AgentMode } from "@/hooks/useAgent";
-import type { Task, ToolCallLog } from "@/types";
+import type { Task } from "@/types";
 import { labelFor } from "./toolLabels";
+import { PrioritizeSection } from "./PrioritizeSection";
+import { DecomposeSection } from "./DecomposeSection";
+import { UnblockSection } from "./UnblockSection";
+import { ToolCallTimeline } from "./ToolCallTimeline";
 
 export interface AgentPanelProps {
   open: boolean;
@@ -67,7 +68,6 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
     loading,
     error,
     awaitingClarification,
-    question,
     runAgent,
     submitClarification,
     reset,
@@ -78,7 +78,6 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
   const [showReasoning, setShowReasoning] = useState(false);
   const notifiedRef = useRef<typeof result | null>(null);
 
-  // Notify parent when decompose writes subtasks so task list can re-fetch.
   useEffect(() => {
     if (
       result?.type === "decompose" &&
@@ -91,7 +90,6 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
     }
   }, [result, onTasksChanged]);
 
-  // Reset internal state when sheet closes
   useEffect(() => {
     if (!open) {
       reset();
@@ -104,9 +102,7 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
   const meta = MODE_META[mode];
   const canDecompose = mode !== "decompose" || !!task;
 
-  const handleRun = () => {
-    void runAgent(mode, { taskId: task?.id });
-  };
+  const handleRun = () => void runAgent(mode, { taskId: task?.id });
 
   const handleSubmitClarification = () => {
     if (!clarificationAnswer.trim()) return;
@@ -126,12 +122,7 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
   };
 
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) onClose();
-      }}
-    >
+    <Sheet open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
       <SheetContent
         side="right"
         className="sm:max-w-lg w-full overflow-y-auto overflow-x-hidden"
@@ -145,21 +136,14 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
           <SheetDescription className="text-[var(--muted)]">
             {meta.desc}
             {task && (
-              <span className="mono block mt-1 text-[10px]">
-                Task: {task.title}
-              </span>
+              <span className="mono block mt-1 text-[10px]">Task: {task.title}</span>
             )}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-4">
-          {/* CTA */}
           {!result && !awaitingClarification && (
-            <Button
-              onClick={handleRun}
-              disabled={loading || !canDecompose}
-              className="w-full"
-            >
+            <Button onClick={handleRun} disabled={loading || !canDecompose} className="w-full">
               {loading ? (
                 <>
                   <Loader2 size={14} className="animate-spin mr-2" />
@@ -210,7 +194,6 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
             </div>
           )}
 
-          {/* Mocked notice */}
           {result?.mocked && (
             <div
               className="flex items-start gap-2 p-3 rounded-sm border text-xs"
@@ -230,7 +213,6 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
             </div>
           )}
 
-          {/* Error */}
           {error && (
             <div
               className="flex items-start gap-2 p-3 rounded-sm border text-xs"
@@ -252,7 +234,6 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
             </div>
           )}
 
-          {/* Mode-specific sections */}
           {result && !error && (
             <>
               {result.type === "prioritize" && (
@@ -269,7 +250,6 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
               )}
               {result.type === "unblock" && <UnblockSection result={result} />}
 
-              {/* Agent reasoning collapsible */}
               {result.toolCallLog && result.toolCallLog.length > 0 && (
                 <div
                   className="rounded-sm border"
@@ -280,11 +260,7 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
                     className="w-full flex items-center justify-between p-3 text-xs mono text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
                   >
                     <span className="flex items-center gap-2">
-                      {showReasoning ? (
-                        <ChevronDown size={12} />
-                      ) : (
-                        <ChevronRight size={12} />
-                      )}
+                      {showReasoning ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                       Agent reasoning ({result.toolCallLog.length} tool calls)
                     </span>
                   </button>
@@ -301,265 +277,4 @@ export function AgentPanel({ open, mode, task, onClose, onJumpToTask, onTasksCha
 
 function AnimatedDots() {
   return <span className="ml-1 inline-block animate-pulse">…</span>;
-}
-
-// ─── Prioritize ───────────────────────────────────────────────────────────────
-
-function PrioritizeSection({
-  result,
-  onJumpToTask,
-}: {
-  result: import("@/types").PrioritizeResult;
-  onJumpToTask: (id: string) => void;
-}) {
-  const recs = result.recommendations ?? [];
-
-  if (recs.length === 0) {
-    return (
-      <p className="text-xs text-[var(--muted)] mono">
-        No recommendations returned.
-      </p>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {result.summary && (
-        <p className="text-xs text-[var(--muted)] leading-relaxed">{result.summary}</p>
-      )}
-      <ol className="space-y-2">
-        {recs.map((r, i) => (
-          <li
-            key={`${r.taskId}-${i}`}
-            className="rounded-sm border p-3"
-            style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
-          >
-            <div className="flex items-start gap-2">
-              <span className="mono text-[10px] font-semibold text-amber-400 mt-0.5">
-                {i + 1}.
-              </span>
-              <div className="flex-1">
-                <div className="font-semibold text-sm text-[var(--foreground)]">
-                  {r.title ?? "Untitled task"}
-                </div>
-                <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
-                  {r.reason}
-                </p>
-              </div>
-              {r.taskId && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onJumpToTask(r.taskId)}
-                  className="shrink-0"
-                >
-                  Jump
-                </Button>
-              )}
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
-
-// ─── Decompose ────────────────────────────────────────────────────────────────
-
-interface DecomposeSectionProps {
-  clarificationAnswer: string;
-  setClarificationAnswer: (v: string) => void;
-  onSubmitClarification: () => void;
-  result: import("@/types").DecomposeResult;
-  loading: boolean;
-}
-
-function DecomposeSection({
-  clarificationAnswer,
-  setClarificationAnswer,
-  onSubmitClarification,
-  result,
-  loading,
-}: DecomposeSectionProps) {
-  if (result.needsClarification) {
-    const question = result.question;
-    return (
-      <div
-        className="rounded-sm border p-4 space-y-3"
-        style={{
-          background: "rgba(251, 191, 36, 0.08)",
-          borderColor: "rgba(251, 191, 36, 0.3)",
-        }}
-      >
-        <div className="flex items-start gap-2">
-          <MessageCircleQuestion size={16} className="text-amber-400 shrink-0 mt-0.5" />
-          <div>
-            <div className="mono text-[10px] font-semibold tracking-widest uppercase text-amber-400">
-              Clarification needed
-            </div>
-            <p className="text-sm text-[var(--foreground)] mt-1">{question}</p>
-          </div>
-        </div>
-        <Textarea
-          value={clarificationAnswer}
-          onChange={(e) => setClarificationAnswer(e.target.value)}
-          placeholder="Type your answer…"
-          disabled={loading}
-        />
-        <Button
-          onClick={onSubmitClarification}
-          disabled={loading || !clarificationAnswer.trim()}
-          className="w-full"
-        >
-          {loading ? (
-            <>
-              <Loader2 size={14} className="animate-spin mr-2" /> Submitting…
-            </>
-          ) : (
-            "Submit answer"
-          )}
-        </Button>
-      </div>
-    );
-  }
-
-  const subtasks = result.subtasks ?? [];
-
-  return (
-    <div className="space-y-3">
-      {result.summary && (
-        <p className="text-xs text-[var(--muted)] leading-relaxed">{result.summary}</p>
-      )}
-      {subtasks.length === 0 ? (
-        <p className="text-xs text-[var(--muted)] mono">No subtasks created.</p>
-      ) : (
-        <ul className="space-y-2">
-          {subtasks.map((s, i) => (
-            <li
-              key={s.id ?? i}
-              className="flex items-start gap-2 rounded-sm border p-3"
-              style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
-            >
-              <input
-                type="checkbox"
-                disabled
-                className="mt-0.5 accent-amber-400"
-                aria-label="subtask complete"
-              />
-              <div className="flex-1">
-                <div className="text-sm text-[var(--foreground)] font-medium">
-                  {s.title}
-                </div>
-              </div>
-              <Badge variant="outline" className={priorityBadgeClass(s.priority)}>
-                {s.priority}
-              </Badge>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function priorityBadgeClass(p: "low" | "medium" | "high"): string {
-  if (p === "high") return "border-red-700 text-red-400";
-  if (p === "medium") return "border-amber-700 text-amber-400";
-  return "border-emerald-700 text-emerald-400";
-}
-
-// ─── Unblock ──────────────────────────────────────────────────────────────────
-
-function UnblockSection({ result }: { result: import("@/types").UnblockResult }) {
-  const blocked = result.blockedTasks ?? [];
-  if (blocked.length === 0) {
-    return (
-      <p className="text-xs text-[var(--muted)] mono">
-        No blocked tasks found. Nice.
-      </p>
-    );
-  }
-
-  return (
-    <ul className="space-y-3">
-      {blocked.map((b) => {
-        const severity =
-          b.daysStuck >= 7 ? "red" : b.daysStuck >= 3 ? "yellow" : "zinc";
-        const badgeClass =
-          severity === "red"
-            ? "border-red-700 text-red-400"
-            : severity === "yellow"
-            ? "border-amber-700 text-amber-400"
-            : "border-zinc-600 text-zinc-400";
-        return (
-          <li
-            key={b.task.id}
-            className="rounded-sm border p-3 space-y-3"
-            style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="font-semibold text-sm text-[var(--foreground)]">
-                {b.task.title}
-              </div>
-              <Badge variant="outline" className={badgeClass}>
-                {b.daysStuck}d stuck
-              </Badge>
-            </div>
-
-            {b.questions.length > 0 && (
-              <div>
-                <div className="mono text-[10px] font-semibold tracking-widest uppercase text-[var(--muted)] mb-1">
-                  Questions
-                </div>
-                <ul className="list-disc ml-5 space-y-1 text-xs text-[var(--foreground)]">
-                  {b.questions.map((q, i) => (
-                    <li key={i}>{q}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {b.nextActions.length > 0 && (
-              <div>
-                <div className="mono text-[10px] font-semibold tracking-widest uppercase text-emerald-400 mb-1">
-                  Next actions
-                </div>
-                <ul className="list-disc ml-5 space-y-1 text-xs text-[var(--foreground)]">
-                  {b.nextActions.map((a, i) => (
-                    <li key={i}>{a}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-// ─── Tool call timeline ───────────────────────────────────────────────────────
-
-function ToolCallTimeline({ log }: { log: ToolCallLog[] }) {
-  return (
-    <ol className="border-t divide-y" style={{ borderColor: "var(--border)" }}>
-      {log.map((entry, i) => (
-        <li key={i} className="p-3 border-b last:border-b-0" style={{ borderColor: "var(--border)" }}>
-          <div className="text-xs mono text-amber-400 mb-1">
-            → {labelFor(entry.tool, entry.input).label}
-          </div>
-          <details className="text-[10px] mono text-[var(--muted)]">
-            <summary className="cursor-pointer select-none">raw</summary>
-            <pre
-              className="mt-2 p-2 rounded-sm whitespace-pre-wrap break-all max-h-40 overflow-auto"
-              style={{ background: "var(--surface-2)" }}
-            >
-{`in:  ${JSON.stringify(entry.input, null, 2)}
-out: ${entry.output}`}
-            </pre>
-          </details>
-        </li>
-      ))}
-    </ol>
-  );
 }
