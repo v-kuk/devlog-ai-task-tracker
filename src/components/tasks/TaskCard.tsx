@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { Pencil, Trash2, Sparkles, Clock, ClipboardCopy, Check } from "lucide-react";
 import type { Task } from "@/types";
 import type { TaskWithMeta } from "@/lib/db";
@@ -39,6 +39,17 @@ function relativeTime(ts: number): string {
   if (days < 30) return `${days}d ago`;
   const months = Math.floor(days / 30);
   return `${months}mo ago`;
+}
+
+function Tip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="relative group/tip">
+      {children}
+      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-1.5 py-0.5 rounded-sm mono text-[10px] whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity bg-zinc-800 text-zinc-300 border border-zinc-700 z-50">
+        {label}
+      </span>
+    </div>
+  );
 }
 
 export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent, onFilterSubtasks }: TaskCardProps) {
@@ -102,39 +113,47 @@ export function TaskCard({ task, onDelete, onEdit, onAiAction, onJumpToParent, o
 
           {/* Action buttons — always visible on touch, hover-only on desktop */}
           <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
-            <button
-              onClick={() => onEdit(task.id)}
-              className="p-1.5 rounded-sm text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
-              title="Edit task"
-            >
-              <Pencil size={13} />
-            </button>
-            <button
-              onClick={handleDeleteClick}
-              className={`p-1.5 rounded-sm transition-colors ${
-                confirming
-                  ? "bg-red-900 text-red-300 hover:bg-red-800"
-                  : "text-[var(--muted)] hover:text-red-400 hover:bg-[var(--surface-2)]"
-              }`}
-              title={confirming ? "Click again to confirm" : "Delete task"}
-            >
-              <Trash2 size={13} />
-            </button>
-            <button
-              onClick={() => (onAiAction ?? onEdit)(task.id)}
-              className="p-1.5 rounded-sm text-[var(--muted)] hover:text-amber-400 hover:bg-[var(--surface-2)] transition-colors"
-              title="AI Actions"
-            >
-              <Sparkles size={13} />
-            </button>
-            <button
-              onClick={handleCopyPrompt}
-              title="Copy task prompt"
-              className="p-1 rounded-sm transition-colors hover:text-amber-400"
-              style={{ color: "var(--muted)" }}
-            >
-              {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
-            </button>
+            <Tip label="Edit task">
+              <button
+                onClick={() => onEdit(task.id)}
+                className="p-1.5 rounded-sm text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
+                aria-label="Edit task"
+              >
+                <Pencil size={13} />
+              </button>
+            </Tip>
+            <Tip label={confirming ? "Click again to confirm" : "Delete task"}>
+              <button
+                onClick={handleDeleteClick}
+                className={`p-1.5 rounded-sm transition-colors ${
+                  confirming
+                    ? "bg-red-900 text-red-300 hover:bg-red-800"
+                    : "text-[var(--muted)] hover:text-red-400 hover:bg-[var(--surface-2)]"
+                }`}
+                aria-label={confirming ? "Click again to confirm" : "Delete task"}
+              >
+                <Trash2 size={13} />
+              </button>
+            </Tip>
+            <Tip label="AI Actions">
+              <button
+                onClick={() => (onAiAction ?? onEdit)(task.id)}
+                className="p-1.5 rounded-sm text-[var(--muted)] hover:text-amber-400 hover:bg-[var(--surface-2)] transition-colors"
+                aria-label="AI Actions"
+              >
+                <Sparkles size={13} />
+              </button>
+            </Tip>
+            <Tip label={copied ? "Copied!" : "Copy task prompt"}>
+              <button
+                onClick={handleCopyPrompt}
+                className="p-1 rounded-sm transition-colors hover:text-amber-400"
+                style={{ color: "var(--muted)" }}
+                aria-label="Copy task prompt"
+              >
+                {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}
+              </button>
+            </Tip>
           </div>
         </div>
 
